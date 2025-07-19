@@ -1,0 +1,6 @@
+#Ensures .env and cache are not tracked by git
+# Ignore environment variables file
+.env
+# Ignore cache files
+__pycache__/
+cache/
