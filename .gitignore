@@ -4,3 +4,4 @@
 # Ignore cache files
 __pycache__/
 cache/
+/cache
