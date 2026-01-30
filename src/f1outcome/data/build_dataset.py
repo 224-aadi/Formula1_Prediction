@@ -84,6 +84,10 @@ class DatasetBuilder:
                     continue
                 qua = self.fetch_round_qualifying(season, rnd)
                 df = res.merge(qua, on=["season", "round", "driverId"], how="left")
+                if "qualiBestMs" in df.columns:
+                    pole = df.groupby(["season", "round"])["qualiBestMs"].transform("min")
+                    df["qualiGapMs"] = df["qualiBestMs"] - pole
+                    df["qualiGapPct"] = (df["qualiBestMs"] - pole) / pole
                 all_rows.append(df)
 
         data = pd.concat(all_rows, ignore_index=True)
