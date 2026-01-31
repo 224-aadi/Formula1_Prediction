@@ -59,11 +59,18 @@ def main():
     ap.add_argument("--combine", choices=["subtract", "subtract_cap", "multiply"], default="subtract_cap")
     ap.add_argument("--p_dnf_cap", type=float, default=0.30)
     ap.add_argument("--select_by", choices=["kendall", "spearman", "top10", "top5"], default="kendall")
+    ap.add_argument("--min_round", type=int, default=None)
+    ap.add_argument("--max_round", type=int, default=None)
 
     args = ap.parse_args()
 
     df = pd.read_parquet(args.data)
     df = df[df["season"] == args.season].copy()
+
+    if args.min_round is not None:
+        df = df[df["round"] >= args.min_round].copy()
+    if args.max_round is not None:
+        df = df[df["round"] <= args.max_round].copy()
 
     ranker = load_ranker(args.ranker)
     dnf_model = load_dnf(args.dnf)

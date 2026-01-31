@@ -6,14 +6,26 @@ from lightgbm import LGBMClassifier
 from src.f1outcome.models.ranker import FEATURES  # reuse same features list
 
 def is_dnf_status(status: str | None) -> int:
-    # Jolpica/Ergast often mark finishers as "Finished" or "+1 Lap", "+2 Laps", etc.
+    """
+    Return 1 if the driver did NOT finish (DNF/DNS/DSQ), else 0.
+
+    In Ergast/Jolpica, finishers can have statuses like:
+    - "Finished"
+    - "Lapped"
+    - "+1 Lap", "+2 Laps", etc.
+    """
     if status is None:
         return 0
+
     s = str(status).strip()
-    if s == "Finished":
+
+    # Finishers
+    if s in {"Finished", "Lapped"}:
         return 0
     if s.startswith("+") and "Lap" in s:
         return 0
+
+    # Everything else treated as non-finish (Retired, Did not start, Disqualified, etc.)
     return 1
 
 def train_dnf(df: pd.DataFrame) -> LGBMClassifier:

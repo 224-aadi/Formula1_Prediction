@@ -1,8 +1,12 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Tuple
+from anyio import Path
 import pandas as pd
 from .jolpica import JolpicaClient
+from src.f1outcome.data.fastf1_features import fastf1_driver_features, FastF1FeatureConfig
+
 
 def _to_int(x, default=None):
     try:
@@ -46,6 +50,9 @@ class DatasetBuilder:
                 "round": rnd,
                 "raceName": races[0].get("raceName"),
                 "driverId": r["Driver"]["driverId"],
+                "givenName": r["Driver"].get("givenName"),
+                "familyName": r["Driver"].get("familyName"),
+                "constructorName": r["Constructor"].get("name"),
                 "constructorId": r["Constructor"]["constructorId"],
                 "grid": _to_int(r.get("grid")),
                 "finishPosition": _to_int(r.get("position")),
@@ -74,7 +81,7 @@ class DatasetBuilder:
             })
         return pd.DataFrame(rows)
 
-    def build(self, seasons: List[int], form_window: int = 5) -> pd.DataFrame:
+    def build(self, seasons: List[int], form_window: int = 5, use_fastf1: bool = False, fastf1_cache_dir: Path | None = None) -> pd.DataFrame:
         all_rows = []
         for season in seasons:
             rounds = self.get_season_rounds(season)
@@ -111,5 +118,30 @@ class DatasetBuilder:
         # Target relevance for ranking (winner highest)
         # If finishPosition is 1..20, convert to relevance: 21 - position
         data["relevance"] = data["finishPosition"].apply(lambda p: (21 - p) if isinstance(p, int) else None)
+        data["fullName_norm"] = (data["givenName"].fillna("") + data["familyName"].fillna("")).apply(lambda s: "".join(ch.lower() for ch in str(s) if ch.isalnum()))
+
+        if use_fastf1:
+            cfg = FastF1FeatureConfig(cache_dir=fastf1_cache_dir or Path("data/raw/fastf1_cache"))
+
+            # For each (season, round, raceName) get features and merge
+            feat_rows = []
+            for (season, rnd), g in data.groupby(["season", "round"]):
+                race_name = g["raceName"].iloc[0]
+                # FastF1 works best 2018+; skip older automatically
+                if int(season) < 2018:
+                    continue
+                try:
+                    f = fastf1_driver_features(int(season), int(rnd), cfg)
+                    if not f.empty:
+                        f["season"] = int(season)
+                        f["round"] = int(rnd)
+                        feat_rows.append(f)
+                except Exception:
+                    # Don't fail dataset build because one event didn't load
+                    continue
+
+            if feat_rows:
+                feats = pd.concat(feat_rows, ignore_index=True)
+                data = data.merge(feats, on=["season", "round", "fullName_norm"], how="left")
 
         return data
