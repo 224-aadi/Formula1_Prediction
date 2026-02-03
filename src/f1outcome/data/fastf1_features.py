@@ -18,7 +18,9 @@ class FastF1FeatureConfig:
     cache_dir: Path
     min_stint_laps: int = 5
     retries: int = 4
-    base_sleep_s: float = 0.8  # small throttle between retries/calls
+    base_sleep_s: float = 0.8
+    load_timeout_s: float = 60.0
+
 
 
 def _setup_fastf1(cfg: FastF1FeatureConfig) -> None:
@@ -28,29 +30,44 @@ def _setup_fastf1(cfg: FastF1FeatureConfig) -> None:
     fastf1.set_log_level("ERROR")  # reduce spam :contentReference[oaicite:4]{index=4}
 
 
-def _load_session(year: int, rnd: int, code: str, cfg: FastF1FeatureConfig):
-    """
-    Robust session loader with retries/backoff.
-    code examples: "Q", "FP2", "FP1"
-    """
+import time
+import concurrent.futures as cf
+
+def _load_session(year: int, rnd: int, code: str, cfg):
     import fastf1
 
     last_err = None
     for attempt in range(cfg.retries):
         try:
-            # gp can be round number as int :contentReference[oaicite:5]{index=5}
             sess = fastf1.get_session(year, rnd, code)
-            sess.load(telemetry=False, weather=False, messages=False)
+
+            def _do_load():
+                # only what we need
+                sess.load(laps=True, telemetry=False, weather=False, messages=False)
+
+            with cf.ThreadPoolExecutor(max_workers=1) as ex:
+                fut = ex.submit(_do_load)
+                fut.result(timeout=cfg.load_timeout_s)  # <-- hard timeout
+
             if sess.laps is None or sess.laps.empty:
                 raise RuntimeError("Session loaded but laps is empty")
-            # gentle throttle to reduce rate-limit / backend stress
-            time.sleep(cfg.base_sleep_s)
+
+            time.sleep(cfg.base_sleep_s)  # small throttle
             return sess
+
+        except cf.TimeoutError as e:
+            last_err = e
+            # backoff then retry
+            time.sleep(cfg.base_sleep_s * (2 ** attempt))
+            continue
+
         except Exception as e:
             last_err = e
-            # exponential backoff
             time.sleep(cfg.base_sleep_s * (2 ** attempt))
+            continue
+
     return None
+
 
 
 def _quali_sector_gaps(year: int, rnd: int, cfg: FastF1FeatureConfig) -> pd.DataFrame:
@@ -64,7 +81,7 @@ def _quali_sector_gaps(year: int, rnd: int, cfg: FastF1FeatureConfig) -> pd.Data
 
     rows = []
     for drv in laps["Driver"].dropna().unique():
-        dlaps = laps.pick_driver(drv)
+        dlaps = laps.pick_drivers([drv])
 
         if "IsAccurate" in dlaps.columns:
             dlaps = dlaps[dlaps["IsAccurate"] == True]
@@ -124,24 +141,24 @@ def _practice_longrun_gap(year: int, rnd: int, cfg: FastF1FeatureConfig) -> pd.D
     if laps is None or laps.empty or "LapTime" not in laps.columns:
         return pd.DataFrame()
 
-    laps = laps.dropna(subset=["LapTime"]).copy()
+    laps = laps.loc[laps["LapTime"].notna()].copy()
 
     # Exclude pit in/out laps when possible
     for col in ["PitInTime", "PitOutTime"]:
         if col in laps.columns:
-            laps = laps[laps[col].isna()]
+            laps = laps.loc[laps[col].isna()].copy()
 
     def to_sec(td):
         if pd.isna(td):
             return np.nan
         return td.total_seconds()
 
-    laps["lap_s"] = laps["LapTime"].apply(to_sec)
-    laps = laps.dropna(subset=["lap_s"])
+    laps.loc[:, "lap_s"] = laps["LapTime"].apply(to_sec)
+    laps = laps.loc[laps["lap_s"].notna()].copy()
 
     rows = []
     for drv in laps["Driver"].dropna().unique():
-        dlaps = laps.pick_driver(drv)
+        dlaps = laps.pick_drivers([drv])
         if "IsAccurate" in dlaps.columns:
             dlaps = dlaps[dlaps["IsAccurate"] == True]
         if dlaps.empty:

@@ -1,9 +1,11 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
+import time
 from typing import Dict, List, Tuple
 from anyio import Path
 import pandas as pd
+from tqdm import tqdm
 from .jolpica import JolpicaClient
 from src.f1outcome.data.fastf1_features import fastf1_driver_features, FastF1FeatureConfig
 
@@ -83,21 +85,60 @@ class DatasetBuilder:
 
     def build(self, seasons: List[int], form_window: int = 5, use_fastf1: bool = False, fastf1_cache_dir: Path | None = None) -> pd.DataFrame:
         all_rows = []
+        fastf1_ok = 0
+        fastf1_fail = 0
+        last_heartbeat = time.time()
+
         for season in seasons:
             rounds = self.get_season_rounds(season)
-            for rnd in rounds:
+            pbar = tqdm(rounds, desc=f"Season {season}", unit="round")
+
+            for rnd in pbar:
+                # heartbeat every ~15s even if things are slow
+                now = time.time()
+                if now - last_heartbeat > 15:
+                    tqdm.write(f"[heartbeat] still working... season={season} round={rnd}")
+                    last_heartbeat = now
+
                 res = self.fetch_round_results(season, rnd)
                 if res.empty:
+                    pbar.set_postfix_str("results=empty")
                     continue
+
                 qua = self.fetch_round_qualifying(season, rnd)
                 df = res.merge(qua, on=["season", "round", "driverId"], how="left")
-                if "qualiBestMs" in df.columns:
-                    pole = df.groupby(["season", "round"])["qualiBestMs"].transform("min")
-                    df["qualiGapMs"] = df["qualiBestMs"] - pole
-                    df["qualiGapPct"] = (df["qualiBestMs"] - pole) / pole
+
+                # ---- optional: merge FastF1 features for this race ----
+                if use_fastf1 and int(season) >= 2018:
+                    try:
+                        cfg = FastF1FeatureConfig(cache_dir=fastf1_cache_dir)
+
+                        f = fastf1_driver_features(int(season), int(rnd), cfg)
+                        if not f.empty:
+                            # build join key
+                            df["fullName_norm"] = (df["givenName"].fillna("") + df["familyName"].fillna("")).apply(
+                                lambda s: "".join(ch.lower() for ch in str(s) if ch.isalnum())
+                            )
+                            FASTF1_COLS = ["q_s1_gap", "q_s2_gap", "q_s3_gap", "fp_longrun_gap"]
+                            df = df.drop(columns=[c for c in FASTF1_COLS if c in df.columns], errors="ignore")
+                            df = df.merge(f, on="fullName_norm", how="left")
+                            fastf1_ok += 1
+                            pbar.set_postfix_str(f"FastF1=OK ({fastf1_ok} ok/{fastf1_fail} fail)")
+                        else:
+                            fastf1_fail += 1
+                            pbar.set_postfix_str(f"FastF1=EMPTY ({fastf1_ok} ok/{fastf1_fail} fail)")
+                    except Exception as e:
+                        fastf1_fail += 1
+                        pbar.set_postfix_str(f"FastF1=FAIL ({fastf1_ok} ok/{fastf1_fail} fail)")
+
                 all_rows.append(df)
 
+        all_rows = [df for df in all_rows if df is not None and not df.empty]
+        if not all_rows:
+            return pd.DataFrame()
+        print(f"[post] collected {len(all_rows)} non-empty race frames; concatenating...")
         data = pd.concat(all_rows, ignore_index=True)
+        print(f"[post] concatenated rows={len(data):,}; computing rolling form features...")
 
         # Rolling “form” features (previous races only => no leakage)
         data = data.sort_values(["season", "round"])

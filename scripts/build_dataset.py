@@ -36,6 +36,7 @@ def main():
 
     suffix = "_fastf1" if args.use_fastf1 else ""
     out = SETTINGS.processed_dir / f"dataset_seasons_{'_'.join(map(str, args.seasons))}{suffix}.parquet"
+    print(f"[post] writing parquet -> {out} ...")
     df.to_parquet(out, index=False)
     print(f"Wrote {out} with {len(df):,} rows")
 

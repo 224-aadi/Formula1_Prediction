@@ -13,7 +13,7 @@ FEATURES = [
     "q_s1_gap",
     "q_s2_gap",
     "q_s3_gap",
-    "fp2_longrun_gap",
+    "fp_longrun_gap",
 ]
 
 
