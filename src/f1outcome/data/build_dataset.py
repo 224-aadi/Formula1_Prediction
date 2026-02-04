@@ -90,6 +90,8 @@ class DatasetBuilder:
         last_heartbeat = time.time()
 
         for season in seasons:
+            use_fastf1_for_season = use_fastf1 and int(season) >= 2018
+            consec_fail = 0
             rounds = self.get_season_rounds(season)
             pbar = tqdm(rounds, desc=f"Season {season}", unit="round")
 
@@ -109,27 +111,54 @@ class DatasetBuilder:
                 df = res.merge(qua, on=["season", "round", "driverId"], how="left")
 
                 # ---- optional: merge FastF1 features for this race ----
-                if use_fastf1 and int(season) >= 2018:
+                if use_fastf1_for_season:
                     try:
                         cfg = FastF1FeatureConfig(cache_dir=fastf1_cache_dir)
 
                         f = fastf1_driver_features(int(season), int(rnd), cfg)
-                        if not f.empty:
-                            # build join key
-                            df["fullName_norm"] = (df["givenName"].fillna("") + df["familyName"].fillna("")).apply(
-                                lambda s: "".join(ch.lower() for ch in str(s) if ch.isalnum())
-                            )
-                            FASTF1_COLS = ["q_s1_gap", "q_s2_gap", "q_s3_gap", "fp_longrun_gap"]
-                            df = df.drop(columns=[c for c in FASTF1_COLS if c in df.columns], errors="ignore")
-                            df = df.merge(f, on="fullName_norm", how="left")
-                            fastf1_ok += 1
-                            pbar.set_postfix_str(f"FastF1=OK ({fastf1_ok} ok/{fastf1_fail} fail)")
-                        else:
+                        if f is None or f.empty:
                             fastf1_fail += 1
+                            consec_fail += 1
                             pbar.set_postfix_str(f"FastF1=EMPTY ({fastf1_ok} ok/{fastf1_fail} fail)")
+                        else:
+                            # IMPORTANT: prevent _x/_y duplicates
+                            for c in ["q_s1_gap", "q_s2_gap", "q_s3_gap", "fp_longrun_gap"]:
+                                if c in df.columns:
+                                    df.drop(columns=[c], inplace=True)
+
+                            # join key must exist
+                            if "fullName_norm" not in df.columns:
+                                df["fullName_norm"] = (df["givenName"].fillna("") + df["familyName"].fillna("")).apply(
+                                    lambda s: "".join(ch.lower() for ch in str(s) if ch.isalnum())
+                                )
+
+                            df = df.merge(f, on="fullName_norm", how="left")
+
+                            fastf1_ok += 1
+                            consec_fail = 0
+                            pbar.set_postfix_str(f"FastF1=OK ({fastf1_ok} ok/{fastf1_fail} fail)")
+
                     except Exception as e:
                         fastf1_fail += 1
+                        consec_fail += 1
                         pbar.set_postfix_str(f"FastF1=FAIL ({fastf1_ok} ok/{fastf1_fail} fail)")
+
+                        # Log the actual error so you can inspect it after the run
+                        try:
+                            from pathlib import Path
+                            Path("data/raw").mkdir(parents=True, exist_ok=True)
+                            with open("data/raw/fastf1_failures.log", "a", encoding="utf-8") as fp:
+                                fp.write(f"{season},{rnd} :: {type(e).__name__}: {e}\n")
+                        except Exception:
+                            pass
+
+                    # If FastF1 is failing repeatedly, stop trying for the rest of this season
+                    if consec_fail >= 5:
+                        from tqdm import tqdm
+                        tqdm.write(
+                            f"[fastf1] disabling FastF1 for season {season} after {consec_fail} consecutive failures"
+                        )
+                        use_fastf1_for_season = False
 
                 all_rows.append(df)
 

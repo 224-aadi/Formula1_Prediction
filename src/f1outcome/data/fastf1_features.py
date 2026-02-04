@@ -210,17 +210,22 @@ def fastf1_driver_features(season: int, rnd: int, cfg: FastF1FeatureConfig) -> p
     """
     Per-driver features keyed by fullName_norm for a season+round.
     """
-    _setup_fastf1(cfg)
+    try:
+        _setup_fastf1(cfg)
 
-    if season < 2018:
+        if season < 2018:
+            return pd.DataFrame()
+
+        q = _quali_sector_gaps(season, rnd, cfg)
+        fp = _practice_longrun_gap(season, rnd, cfg)
+
+        if q.empty and fp.empty:
+            return pd.DataFrame()
+
+        if not q.empty and not fp.empty:
+            return q.merge(fp, on="fullName_norm", how="outer")
+        return q if not q.empty else fp
+
+    except Exception:
+        # Never crash the dataset build
         return pd.DataFrame()
-
-    q = _quali_sector_gaps(season, rnd, cfg)
-    fp = _practice_longrun_gap(season, rnd, cfg)
-
-    if q.empty and fp.empty:
-        return pd.DataFrame()
-
-    if not q.empty and not fp.empty:
-        return q.merge(fp, on="fullName_norm", how="outer")
-    return q if not q.empty else fp
