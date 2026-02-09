@@ -1,7 +1,7 @@
 import argparse
 import pandas as pd
 from src.f1outcome.config import SETTINGS
-from src.f1outcome.models.ranker import train_ranker, save
+from src.f1outcome.models.ranker import train_ranker, save, FEATURES
 
 def main():
     ap = argparse.ArgumentParser()
@@ -21,6 +21,20 @@ def main():
         df = df[df["round"] <= args.max_round].copy()
 
     model = train_ranker(df)
+    try:
+        importances = getattr(model, "feature_importances_", None)
+        if importances is None and hasattr(model, "booster_"):
+            importances = model.booster_.feature_importance()
+        if importances is not None:
+            pairs = list(zip(FEATURES, importances))
+            pairs.sort(key=lambda x: x[1], reverse=True)
+            print("Feature importances (desc):")
+            for name, val in pairs:
+                print(f"  {name}: {val}")
+        else:
+            print("Feature importances not available on model.")
+    except Exception as e:
+        print(f"Failed to read feature importances: {type(e).__name__}: {e}")
     save(model, args.out)
     print(f"Saved model -> {args.out} (rows={len(df):,})")
 

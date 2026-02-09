@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import time
 from typing import Dict, List, Tuple
-from anyio import Path
+ # NOTE: avoid shadowing pathlib.Path with anyio.Path here.
 import pandas as pd
 from tqdm import tqdm
 from .jolpica import JolpicaClient
@@ -154,7 +154,6 @@ class DatasetBuilder:
 
                     # If FastF1 is failing repeatedly, stop trying for the rest of this season
                     if consec_fail >= 5:
-                        from tqdm import tqdm
                         tqdm.write(
                             f"[fastf1] disabling FastF1 for season {season} after {consec_fail} consecutive failures"
                         )
@@ -181,8 +180,24 @@ class DatasetBuilder:
         data = data.groupby("driverId", group_keys=False).apply(
             lambda g: add_rolling(g, "finishPosition", "driverFormAvgFinish")
         )
-        data = data.groupby("constructorId", group_keys=False).apply(
-            lambda g: add_rolling(g, "finishPosition", "teamFormAvgFinish")
+        # Team form = rolling mean of team-average finish over prior races only
+        team_race = (
+            data.groupby(["constructorId", "season", "round"], as_index=False)
+            .agg(teamRaceAvgFinish=("finishPosition", "mean"))
+            .sort_values(["constructorId", "season", "round"])
+        )
+        g = team_race.groupby("constructorId", sort=False)
+        team_race["teamFormAvgFinish"] = (
+            g["teamRaceAvgFinish"]
+            .rolling(window=form_window, min_periods=1)
+            .mean()
+            .reset_index(level=0, drop=True)
+        )
+        team_race["teamFormAvgFinish"] = g["teamFormAvgFinish"].shift(1)
+        data = data.merge(
+            team_race[["constructorId", "season", "round", "teamFormAvgFinish"]],
+            on=["constructorId", "season", "round"],
+            how="left",
         )
 
         # Target relevance for ranking (winner highest)

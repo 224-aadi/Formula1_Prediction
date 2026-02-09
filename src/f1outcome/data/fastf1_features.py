@@ -20,6 +20,7 @@ class FastF1FeatureConfig:
     retries: int = 4
     base_sleep_s: float = 0.8
     load_timeout_s: float = 60.0
+    failure_log_path: Optional[Path] = None
 
 
 
@@ -32,6 +33,17 @@ def _setup_fastf1(cfg: FastF1FeatureConfig) -> None:
 
 import time
 import concurrent.futures as cf
+
+
+def _log_failure(cfg: FastF1FeatureConfig, msg: str) -> None:
+    try:
+        if cfg.failure_log_path is None:
+            cfg.failure_log_path = Path("data/raw/fastf1_failures.log")
+        cfg.failure_log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(cfg.failure_log_path, "a", encoding="utf-8") as fp:
+            fp.write(msg.rstrip() + "\n")
+    except Exception:
+        pass
 
 def _load_session(year: int, rnd: int, code: str, cfg):
     import fastf1
@@ -66,6 +78,13 @@ def _load_session(year: int, rnd: int, code: str, cfg):
             time.sleep(cfg.base_sleep_s * (2 ** attempt))
             continue
 
+    if last_err is not None:
+        _log_failure(
+            cfg,
+            f"{year},{rnd},{code} :: {type(last_err).__name__}: {last_err}",
+        )
+    else:
+        _log_failure(cfg, f"{year},{rnd},{code} :: UNKNOWN: session load failed")
     return None
 
 
@@ -73,10 +92,12 @@ def _load_session(year: int, rnd: int, code: str, cfg):
 def _quali_sector_gaps(year: int, rnd: int, cfg: FastF1FeatureConfig) -> pd.DataFrame:
     sess = _load_session(year, rnd, "Q", cfg)
     if sess is None:
+        _log_failure(cfg, f"{year},{rnd},Q :: EMPTY: session=None")
         return pd.DataFrame()
 
     laps = sess.laps
     if laps is None or laps.empty:
+        _log_failure(cfg, f"{year},{rnd},Q :: EMPTY: laps empty")
         return pd.DataFrame()
 
     rows = []
@@ -135,10 +156,12 @@ def _practice_longrun_gap(year: int, rnd: int, cfg: FastF1FeatureConfig) -> pd.D
     if sess is None:
         sess = _load_session(year, rnd, "FP1", cfg)
     if sess is None:
+        _log_failure(cfg, f"{year},{rnd},FP2/FP1 :: EMPTY: session=None")
         return pd.DataFrame()
 
     laps = sess.laps
     if laps is None or laps.empty or "LapTime" not in laps.columns:
+        _log_failure(cfg, f"{year},{rnd},FP2/FP1 :: EMPTY: laps empty or LapTime missing")
         return pd.DataFrame()
 
     laps = laps.loc[laps["LapTime"].notna()].copy()
@@ -220,12 +243,14 @@ def fastf1_driver_features(season: int, rnd: int, cfg: FastF1FeatureConfig) -> p
         fp = _practice_longrun_gap(season, rnd, cfg)
 
         if q.empty and fp.empty:
+            _log_failure(cfg, f"{season},{rnd},ALL :: EMPTY: q and fp empty")
             return pd.DataFrame()
 
         if not q.empty and not fp.empty:
             return q.merge(fp, on="fullName_norm", how="outer")
         return q if not q.empty else fp
 
-    except Exception:
+    except Exception as e:
+        _log_failure(cfg, f"{season},{rnd},ALL :: EXC: {type(e).__name__}: {e}")
         # Never crash the dataset build
         return pd.DataFrame()
