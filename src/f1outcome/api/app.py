@@ -19,19 +19,21 @@ from fastapi.middleware.cors import CORSMiddleware
 
 
 
+import os
+
 # ----------------------------
 # Artifact paths / constants
 # ----------------------------
-RANKER_PATH = Path("artifacts") / "final" / "ranker.joblib"
+RANKER_PATH = Path(os.environ.get("F1_RANKER_PATH", "artifacts/final/ranker.joblib"))
 
 # Use RAW (uncalibrated) for scoring signal
-DNF_RAW_PATH = Path("artifacts") / "final" / "dnf_raw.joblib"
+DNF_RAW_PATH = Path(os.environ.get("F1_DNF_RAW_PATH", "artifacts/final/dnf_raw.joblib"))
 
 # Use CAL (calibrated) for user-facing probability
-DNF_CAL_PATH = Path("artifacts") / "final" / "dnf_cal.joblib"
+DNF_CAL_PATH = Path(os.environ.get("F1_DNF_CAL_PATH", "artifacts/final/dnf_cal.joblib"))
 
 # Dataset for API predictions
-DATASET_PATH = Path("data") / "processed" / "final_hybrid_dataset.parquet"
+DATASET_PATH = Path(os.environ.get("F1_DATASET_PATH", "data/processed/final_hybrid_dataset.parquet"))
 
 # Scoring knobs
 ALPHA: float = 5.0

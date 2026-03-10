@@ -17,6 +17,10 @@ dependencies = [
     "requests",
     "tqdm",
     "fastf1",
+    "fastapi",
+    "uvicorn",
+    "pytest",
+    "httpx",
 ]
 
 [tool.setuptools.packages.find]
