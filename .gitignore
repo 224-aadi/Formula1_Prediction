@@ -136,3 +136,24 @@ data/raw/*
 data/processed/*
 artifacts/*
 !.gitkeep
+
+# Explicitly UN-ignore the final models and metadata for production
+!artifacts/final/
+!artifacts/final/*
+
+# Ignore temporary diagnostic, test, and evaluation scripts we built locally
+scripts/test_*.py
+scripts/diagnose_*.py
+scripts/evaluate_*.py
+scripts/tune_*.py
+scripts/calculate_*.py
+scripts/inspect_*.py
+scripts/check_*.py
+scripts/train_dnf_cal_cv.py
+scripts/train_dnf_caliberated.py
+scripts/merge_parquets.py
+scripts/prepare_api_data.py
+
+# Ignore test output text files
+*.txt
+

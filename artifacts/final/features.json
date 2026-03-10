@@ -1,0 +1,22 @@
+[
+    "grid",
+    "qualiPos",
+    "qualiGapMs",
+    "qualiGapPct",
+    "driverFormAvgFinish",
+    "teamFormAvgFinish",
+    "driverFormAvgPoints",
+    "teamFormAvgPoints",
+    "teammateFormFinishDelta",
+    "grid_bucket",
+    "q_s1_gap",
+    "q_s2_gap",
+    "q_s3_gap",
+    "fp_longrun_gap",
+    "driver_dnf_rate",
+    "driver_mech_dnf_rate",
+    "team_dnf_rate",
+    "team_mech_dnf_rate",
+    "is_street_circuit",
+    "trackId"
+]

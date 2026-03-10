@@ -3,7 +3,7 @@ import joblib
 import pandas as pd
 from lightgbm import LGBMClassifier
 
-from src.f1outcome.models.ranker import FEATURES  # reuse same features list
+from f1outcome.models.ranker import FEATURES  # reuse same features list
 
 def is_dnf_status(status: str | None) -> int:
     """
@@ -35,15 +35,16 @@ def train_dnf(df: pd.DataFrame) -> LGBMClassifier:
     df = df.copy()
     df["dnf"] = df["status"].apply(is_dnf_status).astype(int)
 
-    X = df[FEATURES].fillna(-1)
+    X = df[FEATURES]  # LightGBM handles NaNs natively; do not fill with -1
     y = df["dnf"]
 
     model = LGBMClassifier(
-        n_estimators=600,
+        n_estimators=150,
         learning_rate=0.03,
-        num_leaves=63,
-        subsample=0.9,
-        colsample_bytree=0.9,
+        num_leaves=15,
+        min_child_samples=50,
+        subsample=0.8,
+        colsample_bytree=0.8,
         random_state=42,
     )
     model.fit(X, y)

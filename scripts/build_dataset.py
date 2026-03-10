@@ -1,9 +1,9 @@
 from pathlib import Path
 import argparse
 
-from src.f1outcome.config import SETTINGS
-from src.f1outcome.data.jolpica import JolpicaClient
-from src.f1outcome.data.build_dataset import DatasetBuilder
+from f1outcome.config import SETTINGS
+from f1outcome.data.jolpica import JolpicaClient
+from f1outcome.data.build_dataset import DatasetBuilder
 
 def main():
     ap = argparse.ArgumentParser()

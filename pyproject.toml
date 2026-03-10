@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "f1outcome"
+version = "0.1.0"
+description = "Formula 1 Race Outcome Prediction"
+authors = [{name = "User", email = "user@example.com"}]
+dependencies = [
+    "pandas",
+    "numpy",
+    "scikit-learn",
+    "lightgbm",
+    "joblib",
+    "fastparquet",
+    "requests",
+    "tqdm",
+    "fastf1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

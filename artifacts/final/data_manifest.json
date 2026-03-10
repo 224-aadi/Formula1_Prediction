@@ -1,0 +1,12 @@
+﻿[
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "A086416FD1594C59BA638B709CEF7C476262067E154DF87ADB5C99B33FA01B3A",
+        "Path":  "C:\\Users\\aadig\\OneDrive\\Documents\\GitHub\\Formula1_Prediction\\data\\processed\\dataset_seasons_2019_2020_2021_2022_2023_2024.parquet"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "31C35AD4A462D2BB58A93ACAF06719BA68990F32AF2F6106E76B340813BE9483",
+        "Path":  "C:\\Users\\aadig\\OneDrive\\Documents\\GitHub\\Formula1_Prediction\\data\\processed\\dataset_seasons_2019_2020_2021_2022_2023_2024_fastf1.parquet"
+    }
+]

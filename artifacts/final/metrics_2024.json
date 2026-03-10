@@ -1,0 +1,6 @@
+{
+    "ranker_mean_top10_precision": 0.804,
+    "ranker_kendall_tau": 0.541,
+    "dnf_brier_score_calibrated": 0.1033,
+    "dnf_roc_auc_2024": 0.5312
+}

@@ -3,11 +3,10 @@ from dataclasses import dataclass
 from pathlib import Path
 import time
 from typing import Dict, List, Tuple
- # NOTE: avoid shadowing pathlib.Path with anyio.Path here.
 import pandas as pd
 from tqdm import tqdm
 from .jolpica import JolpicaClient
-from src.f1outcome.data.fastf1_features import fastf1_driver_features, FastF1FeatureConfig
+from .fastf1_features import fastf1_driver_features, FastF1FeatureConfig
 
 
 def _to_int(x, default=None):
@@ -58,7 +57,9 @@ class DatasetBuilder:
                 "constructorId": r["Constructor"]["constructorId"],
                 "grid": _to_int(r.get("grid")),
                 "finishPosition": _to_int(r.get("position")),
+                "points": float(r.get("points", 0.0)),
                 "status": r.get("status"),
+                "circuitId": races[0]["Circuit"]["circuitId"],
             })
         return pd.DataFrame(rows)
 
@@ -139,6 +140,12 @@ class DatasetBuilder:
                             pbar.set_postfix_str(f"FastF1=OK ({fastf1_ok} ok/{fastf1_fail} fail)")
 
                     except Exception as e:
+                        if "RateLimitError" in str(type(e)):
+                            # Global killswitch for FastF1 if rate limit hit
+                            tqdm.write(f"[fastf1] RateLimitError hit in Season {season}. Disabling FastF1 entirely to protect API.")
+                            use_fastf1_for_season = False
+                            use_fastf1 = False # Stop for all subsequent seasons too
+                            
                         fastf1_fail += 1
                         consec_fail += 1
                         pbar.set_postfix_str(f"FastF1=FAIL ({fastf1_ok} ok/{fastf1_fail} fail)")
@@ -180,10 +187,17 @@ class DatasetBuilder:
         data = data.groupby("driverId", group_keys=False).apply(
             lambda g: add_rolling(g, "finishPosition", "driverFormAvgFinish")
         )
-        # Team form = rolling mean of team-average finish over prior races only
+        data = data.groupby("driverId", group_keys=False).apply(
+            lambda g: add_rolling(g, "points", "driverFormAvgPoints")
+        )
+        
+        # Team form = rolling mean of team-average finish/points over prior races only
         team_race = (
             data.groupby(["constructorId", "season", "round"], as_index=False)
-            .agg(teamRaceAvgFinish=("finishPosition", "mean"))
+            .agg(
+                teamRaceAvgFinish=("finishPosition", "mean"),
+                teamRaceAvgPoints=("points", "mean")
+            )
             .sort_values(["constructorId", "season", "round"])
         )
         g = team_race.groupby("constructorId", sort=False)
@@ -194,11 +208,142 @@ class DatasetBuilder:
             .reset_index(level=0, drop=True)
         )
         team_race["teamFormAvgFinish"] = g["teamFormAvgFinish"].shift(1)
+        
+        team_race["teamFormAvgPoints"] = (
+            g["teamRaceAvgPoints"]
+            .rolling(window=form_window, min_periods=1)
+            .mean()
+            .reset_index(level=0, drop=True)
+        )
+        team_race["teamFormAvgPoints"] = g["teamFormAvgPoints"].shift(1)
+        
         data = data.merge(
-            team_race[["constructorId", "season", "round", "teamFormAvgFinish"]],
+            team_race[["constructorId", "season", "round", "teamFormAvgFinish", "teamFormAvgPoints"]],
             on=["constructorId", "season", "round"],
             how="left",
         )
+        
+        # Teammate Delta (Driver Form Finish - Teammate Form Finish)
+        # Note: If team has >2 drivers in a race (rare but possible), this averages all others.
+        def calc_teammate_delta(group):
+            tdeltas = []
+            for _, row in group.iterrows():
+                teammates = group[(group["driverId"] != row["driverId"])]
+                if not teammates.empty:
+                    teammate_form = teammates["driverFormAvgFinish"].mean()
+                    tdeltas.append(row["driverFormAvgFinish"] - teammate_form)
+                else:
+                    tdeltas.append(0.0) # No teammate data
+            group["teammateFormFinishDelta"] = tdeltas
+            return group
+            
+        data = data.groupby(["season", "round", "constructorId"], group_keys=False).apply(calc_teammate_delta)
+        
+
+        # --- Reliability Features (DNF Rates) ---
+        def is_dnf(status):
+            s = str(status).strip()
+            if s in {"Finished", "Lapped"} or (s.startswith("+") and "Lap" in s):
+                return 0
+            return 1
+        
+        def is_mech_dnf(status):
+            s = str(status).strip().lower()
+            # Common mechanical failures in Ergast
+            mech = {
+                "engine", "gearbox", "transmission", "clutch", "hydraulics", 
+                "electrical", "radiator", "suspension", "brakes", "differential", 
+                "overheating", "mechanical", "power unit", "battery", "electronics",
+                "drivetrain", "cooling system", "oil leak", "water leak", "exhaust"
+            }
+            if any(m in s for m in mech):
+                return 1
+            return 0
+            
+        data["is_dnf"] = data["status"].apply(is_dnf)
+        data["is_mech_dnf"] = data["status"].apply(is_mech_dnf)
+        
+        # Helper for rolling stats: shift(1) to avoid leakage
+        def add_rolling_rate(group, target_col, out_col, window):
+            group = group.sort_values(["season", "round"])
+            # rolling mean of binary 0/1 is the rate
+            group[out_col] = group[target_col].shift(1).rolling(window, min_periods=1).mean()
+            return group
+
+        # Driver Reliability (Last 20 races)
+        data = data.groupby("driverId", group_keys=False).apply(
+            lambda g: add_rolling_rate(g, "is_dnf", "driver_dnf_rate", 20)
+        )
+        data = data.groupby("driverId", group_keys=False).apply(
+            lambda g: add_rolling_rate(g, "is_mech_dnf", "driver_mech_dnf_rate", 20)
+        )
+        
+        # Team Reliability (Last 20 races)
+        data = data.groupby("constructorId", group_keys=False).apply(
+            lambda g: add_rolling_rate(g, "is_dnf", "team_dnf_rate", 20)
+        )
+        data = data.groupby("constructorId", group_keys=False).apply(
+            lambda g: add_rolling_rate(g, "is_mech_dnf", "team_mech_dnf_rate", 20)
+        )
+        
+        # --- Track Context & Grid Features ---
+        street_circuits = {
+            "monaco", "marina_bay", "baku", "jeddah", "miami", "las_vegas", 
+            "albert_park", "villeneuve", "sochi", "valencia", "adler", "detroit", "dallas"
+        }
+        
+        if "circuitId" in data.columns:
+            data["is_street_circuit"] = data["circuitId"].apply(lambda c: 1 if str(c) in street_circuits else 0)
+            data["trackId"] = data["circuitId"].astype("category").cat.codes
+        else:
+            pass
+            
+        def get_grid_bucket(grid):
+            if pd.isna(grid) or grid <= 0: return 4 # Pit lane / default
+            if grid <= 3: return 1  # P1-P3
+            if grid <= 10: return 2 # P4-P10
+            if grid <= 20: return 3 # P11-P20
+            return 4 # P21+
+            
+        data["grid_bucket"] = data["grid"].apply(get_grid_bucket)
+        
+        # --- Qualifying Gaps ---
+        # Calculate gap to pole for each race
+        def calc_quali_gaps(g):
+            if "qualiBestMs" not in g.columns or g["qualiBestMs"].dropna().empty:
+                g["qualiGapMs"] = None
+                g["qualiGapPct"] = None
+                return g
+            
+            pole = g["qualiBestMs"].min()
+            if pd.isna(pole) or pole <= 0:
+                g["qualiGapMs"] = None
+                g["qualiGapPct"] = None
+                return g
+
+            g["qualiGapMs"] = g["qualiBestMs"] - pole
+            g["qualiGapPct"] = g["qualiGapMs"] / pole
+            return g
+
+        data = data.groupby(["season", "round"], group_keys=False).apply(calc_quali_gaps)
+        
+        # --- Ensure All Features Exist (fill missing with NaN) ---
+        # This handles cases where FastF1 failed entirely or some features weren't computed
+        expected_features = [
+            "grid", "qualiPos", "qualiGapMs", "qualiGapPct", 
+            "driverFormAvgFinish", "teamFormAvgFinish", 
+            "driverFormAvgPoints", "teamFormAvgPoints", "teammateFormFinishDelta", "grid_bucket", # New
+            "q_s1_gap", "q_s2_gap", "q_s3_gap", "fp_longrun_gap",
+            "driver_dnf_rate", "driver_mech_dnf_rate",
+            "team_dnf_rate", "team_mech_dnf_rate",
+            "is_street_circuit", "trackId"
+        ]
+        
+        for c in expected_features:
+            if c not in data.columns:
+                data[c] = float("nan")
+
+        # ----------------------------------------
 
         # Target relevance for ranking (winner highest)
         # If finishPosition is 1..20, convert to relevance: 21 - position
