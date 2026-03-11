@@ -94,34 +94,91 @@ const CALENDAR: Record<number, { round: number; name: string; flag: string; circ
   ],
 };
 
-/* ═══════════════ DRIVER DATA (2026 Season) ═══════════════ */
-const TEAMS: Record<string, { team: string; color: string; accent: string; num: number }> = {
-  russell: { team: "Mercedes", color: "#0D9488", accent: "#2DD4BF", num: 63 },
-  antonelli: { team: "Mercedes", color: "#0D9488", accent: "#2DD4BF", num: 12 },
-  leclerc: { team: "Ferrari", color: "#DC2626", accent: "#F87171", num: 16 },
-  hamilton: { team: "Ferrari", color: "#DC2626", accent: "#F87171", num: 44 },
-  norris: { team: "McLaren", color: "#EA580C", accent: "#FB923C", num: 1 },
-  piastri: { team: "McLaren", color: "#EA580C", accent: "#FB923C", num: 81 },
-  max_verstappen: { team: "Red Bull Racing", color: "#1E3A8A", accent: "#3B82F6", num: 3 },
-  hadjar: { team: "Red Bull Racing", color: "#1E3A8A", accent: "#3B82F6", num: 6 },
-  bearman: { team: "Haas", color: "#B91C1C", accent: "#F87171", num: 87 },
-  ocon: { team: "Haas", color: "#B91C1C", accent: "#F87171", num: 31 },
-  arvid_lindblad: { team: "Racing Bulls", color: "#1E40AF", accent: "#818CF8", num: 41 },
-  lindblad: { team: "Racing Bulls", color: "#1E40AF", accent: "#818CF8", num: 41 },
-  lawson: { team: "Racing Bulls", color: "#1E40AF", accent: "#818CF8", num: 30 },
-  bortoleto: { team: "Audi", color: "#10B981", accent: "#34D399", num: 5 },
-  hulkenberg: { team: "Audi", color: "#10B981", accent: "#34D399", num: 27 },
-  gasly: { team: "Alpine", color: "#0369A1", accent: "#38BDF8", num: 10 },
-  colapinto: { team: "Alpine", color: "#0369A1", accent: "#38BDF8", num: 43 },
-  albon: { team: "Williams", color: "#1D4ED8", accent: "#60A5FA", num: 23 },
-  sainz: { team: "Williams", color: "#1D4ED8", accent: "#60A5FA", num: 55 },
-  perez: { team: "Cadillac", color: "#CA8A04", accent: "#FACC15", num: 11 },
-  bottas: { team: "Cadillac", color: "#CA8A04", accent: "#FACC15", num: 77 },
-  stroll: { team: "Aston Martin", color: "#166534", accent: "#4ADE80", num: 18 },
-  alonso: { team: "Aston Martin", color: "#166534", accent: "#4ADE80", num: 14 }
+/* ═══════════════ DRIVER DATA (Season-Aware) ═══════════════ */
+type DriverInfo = { team: string; color: string; accent: string; num: number };
+const TEAMS_BY_SEASON: Record<number, Record<string, DriverInfo>> = {
+  2024: {
+    max_verstappen: { team: "Red Bull Racing", color: "#1E3A8A", accent: "#3B82F6", num: 1 },
+    perez: { team: "Red Bull Racing", color: "#1E3A8A", accent: "#3B82F6", num: 11 },
+    hamilton: { team: "Mercedes", color: "#0D9488", accent: "#2DD4BF", num: 44 },
+    russell: { team: "Mercedes", color: "#0D9488", accent: "#2DD4BF", num: 63 },
+    leclerc: { team: "Ferrari", color: "#DC2626", accent: "#F87171", num: 16 },
+    sainz: { team: "Ferrari", color: "#DC2626", accent: "#F87171", num: 55 },
+    norris: { team: "McLaren", color: "#EA580C", accent: "#FB923C", num: 4 },
+    piastri: { team: "McLaren", color: "#EA580C", accent: "#FB923C", num: 81 },
+    alonso: { team: "Aston Martin", color: "#166534", accent: "#4ADE80", num: 14 },
+    stroll: { team: "Aston Martin", color: "#166534", accent: "#4ADE80", num: 18 },
+    gasly: { team: "Alpine", color: "#0369A1", accent: "#38BDF8", num: 10 },
+    ocon: { team: "Alpine", color: "#0369A1", accent: "#38BDF8", num: 31 },
+    ricciardo: { team: "RB", color: "#1E40AF", accent: "#818CF8", num: 3 },
+    tsunoda: { team: "RB", color: "#1E40AF", accent: "#818CF8", num: 22 },
+    bottas: { team: "Kick Sauber", color: "#10B981", accent: "#34D399", num: 77 },
+    zhou: { team: "Kick Sauber", color: "#10B981", accent: "#34D399", num: 24 },
+    kevin_magnussen: { team: "Haas", color: "#B91C1C", accent: "#F87171", num: 20 },
+    magnussen: { team: "Haas", color: "#B91C1C", accent: "#F87171", num: 20 },
+    hulkenberg: { team: "Haas", color: "#B91C1C", accent: "#F87171", num: 27 },
+    albon: { team: "Williams", color: "#1D4ED8", accent: "#60A5FA", num: 23 },
+    sargeant: { team: "Williams", color: "#1D4ED8", accent: "#60A5FA", num: 2 },
+    colapinto: { team: "Williams", color: "#1D4ED8", accent: "#60A5FA", num: 43 },
+    lawson: { team: "RB", color: "#1E40AF", accent: "#818CF8", num: 40 },
+    bearman: { team: "Ferrari", color: "#DC2626", accent: "#F87171", num: 38 },
+    de_vries: { team: "RB", color: "#1E40AF", accent: "#818CF8", num: 21 },
+  },
+  2025: {
+    max_verstappen: { team: "Red Bull Racing", color: "#1E3A8A", accent: "#3B82F6", num: 1 },
+    lawson: { team: "Red Bull Racing", color: "#1E3A8A", accent: "#3B82F6", num: 30 },
+    hamilton: { team: "Ferrari", color: "#DC2626", accent: "#F87171", num: 44 },
+    leclerc: { team: "Ferrari", color: "#DC2626", accent: "#F87171", num: 16 },
+    russell: { team: "Mercedes", color: "#0D9488", accent: "#2DD4BF", num: 63 },
+    antonelli: { team: "Mercedes", color: "#0D9488", accent: "#2DD4BF", num: 12 },
+    norris: { team: "McLaren", color: "#EA580C", accent: "#FB923C", num: 4 },
+    piastri: { team: "McLaren", color: "#EA580C", accent: "#FB923C", num: 81 },
+    alonso: { team: "Aston Martin", color: "#166534", accent: "#4ADE80", num: 14 },
+    stroll: { team: "Aston Martin", color: "#166534", accent: "#4ADE80", num: 18 },
+    gasly: { team: "Alpine", color: "#0369A1", accent: "#38BDF8", num: 10 },
+    doohan: { team: "Alpine", color: "#0369A1", accent: "#38BDF8", num: 7 },
+    tsunoda: { team: "Racing Bulls", color: "#1E40AF", accent: "#818CF8", num: 22 },
+    hadjar: { team: "Racing Bulls", color: "#1E40AF", accent: "#818CF8", num: 6 },
+    hulkenberg: { team: "Kick Sauber", color: "#10B981", accent: "#34D399", num: 27 },
+    bortoleto: { team: "Kick Sauber", color: "#10B981", accent: "#34D399", num: 5 },
+    ocon: { team: "Haas", color: "#B91C1C", accent: "#F87171", num: 31 },
+    bearman: { team: "Haas", color: "#B91C1C", accent: "#F87171", num: 87 },
+    albon: { team: "Williams", color: "#1D4ED8", accent: "#60A5FA", num: 23 },
+    sainz: { team: "Williams", color: "#1D4ED8", accent: "#60A5FA", num: 55 },
+    perez: { team: "Red Bull Racing", color: "#1E3A8A", accent: "#3B82F6", num: 11 },
+    colapinto: { team: "Alpine", color: "#0369A1", accent: "#38BDF8", num: 43 },
+  },
+  2026: {
+    russell: { team: "Mercedes", color: "#0D9488", accent: "#2DD4BF", num: 63 },
+    antonelli: { team: "Mercedes", color: "#0D9488", accent: "#2DD4BF", num: 12 },
+    leclerc: { team: "Ferrari", color: "#DC2626", accent: "#F87171", num: 16 },
+    hamilton: { team: "Ferrari", color: "#DC2626", accent: "#F87171", num: 44 },
+    norris: { team: "McLaren", color: "#EA580C", accent: "#FB923C", num: 1 },
+    piastri: { team: "McLaren", color: "#EA580C", accent: "#FB923C", num: 81 },
+    max_verstappen: { team: "Red Bull Racing", color: "#1E3A8A", accent: "#3B82F6", num: 3 },
+    hadjar: { team: "Red Bull Racing", color: "#1E3A8A", accent: "#3B82F6", num: 6 },
+    bearman: { team: "Haas", color: "#B91C1C", accent: "#F87171", num: 87 },
+    ocon: { team: "Haas", color: "#B91C1C", accent: "#F87171", num: 31 },
+    arvid_lindblad: { team: "Racing Bulls", color: "#1E40AF", accent: "#818CF8", num: 41 },
+    lindblad: { team: "Racing Bulls", color: "#1E40AF", accent: "#818CF8", num: 41 },
+    lawson: { team: "Racing Bulls", color: "#1E40AF", accent: "#818CF8", num: 30 },
+    bortoleto: { team: "Audi", color: "#10B981", accent: "#34D399", num: 5 },
+    hulkenberg: { team: "Audi", color: "#10B981", accent: "#34D399", num: 27 },
+    gasly: { team: "Alpine", color: "#0369A1", accent: "#38BDF8", num: 10 },
+    colapinto: { team: "Alpine", color: "#0369A1", accent: "#38BDF8", num: 43 },
+    albon: { team: "Williams", color: "#1D4ED8", accent: "#60A5FA", num: 23 },
+    sainz: { team: "Williams", color: "#1D4ED8", accent: "#60A5FA", num: 55 },
+    perez: { team: "Cadillac", color: "#CA8A04", accent: "#FACC15", num: 11 },
+    bottas: { team: "Cadillac", color: "#CA8A04", accent: "#FACC15", num: 77 },
+    stroll: { team: "Aston Martin", color: "#166534", accent: "#4ADE80", num: 18 },
+    alonso: { team: "Aston Martin", color: "#166534", accent: "#4ADE80", num: 14 },
+  },
 };
 
-const td = (id: string) => TEAMS[id] || { team: "Unknown", color: "#3F3F46", accent: "#71717A", num: 0 };
+const td = (id: string, yr: number): DriverInfo => {
+  const seasonMap = TEAMS_BY_SEASON[yr] || TEAMS_BY_SEASON[2026];
+  return seasonMap[id] || { team: "Unknown", color: "#3F3F46", accent: "#71717A", num: 0 };
+};
 const fmt = (id: string) => id.split("_").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
 
 /* ═══════════════ COMPONENTS ═══════════════ */
@@ -418,7 +475,7 @@ export default function Home() {
                   {[1, 0, 2].map((pos) => {
                     const driver = data.order[pos];
                     if (!driver) return null;
-                    const t = td(driver.driverId);
+                    const t = td(driver.driverId, season);
                     const h = pos === 0 ? "h-52" : pos === 1 ? "h-44" : "h-36";
                     const medal = ["🥇", "🥈", "🥉"][pos];
                     const order = pos === 0 ? "order-2" : pos === 1 ? "order-1" : "order-3";
@@ -464,7 +521,7 @@ export default function Home() {
                   </div>
 
                   {data.order.map((driver, idx) => {
-                    const t = td(driver.driverId);
+                    const t = td(driver.driverId, season);
                     const isOpen = expanded === driver.driverId;
                     const barPct = ((driver.score_adj - worst) / range) * 100;
                     return (
@@ -541,7 +598,7 @@ export default function Home() {
                 {/* Driver Selector */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2">
                   {data.order.map((d) => {
-                    const t = td(d.driverId);
+                    const t = td(d.driverId, season);
                     const on = cmp.includes(d.driverId);
                     return (
                       <button key={d.driverId} onClick={() => toggleCmp(d.driverId)}
@@ -560,7 +617,7 @@ export default function Home() {
                     <div className="text-center text-zinc-600 text-xs font-bold uppercase tracking-widest mb-4">vs</div>
                     <div className="grid grid-cols-2 gap-4">
                       {cmpData.map((driver) => {
-                        const t = td(driver.driverId);
+                        const t = td(driver.driverId, season);
                         const pos = data!.order.findIndex((o) => o.driverId === driver.driverId) + 1;
                         return (
                           <div key={driver.driverId} className="p-5 rounded-2xl border bg-zinc-900/40 racing-shimmer"
@@ -588,8 +645,8 @@ export default function Home() {
                     {/* Delta Bar */}
                     {(() => {
                       const delta = cmpData[0].score_adj - cmpData[1].score_adj;
-                      const t0 = td(cmpData[0].driverId);
-                      const t1 = td(cmpData[1].driverId);
+                      const t0 = td(cmpData[0].driverId, season);
+                      const t1 = td(cmpData[1].driverId, season);
                       return (
                         <div className="mt-4 p-4 rounded-xl bg-zinc-900/40 border border-white/5">
                           <div className="text-[10px] text-zinc-500 text-center mb-2 font-bold uppercase tracking-widest">Score Advantage</div>
