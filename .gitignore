@@ -138,6 +138,7 @@ artifacts/*
 !.gitkeep
 
 # Explicitly UN-ignore the final models and metadata for production
+!data/processed/final_hybrid_dataset.parquet
 !artifacts/final/
 !artifacts/final/*
 
