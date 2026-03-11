@@ -21,7 +21,8 @@ type PredictionResponse = {
   form_cutoff_raceId: string;
 };
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+// The API runs on port 8000 by default in the backend
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://f1-predictor-api-qpym.onrender.com";
 
 /* ═══════════════ RACE CALENDAR ═══════════════ */
 const CALENDAR: Record<number, { round: number; name: string; flag: string; circuit: string; date: string }[]> = {
@@ -195,7 +196,7 @@ export default function Home() {
   const predict = useCallback(async (s: number, r: number) => {
     setLoading(true); setError(null); setExpanded(null);
     try {
-      const res = await fetch(`${API}/predict/live?season=${s}&round=${r}`);
+      const res = await fetch(`${API_BASE}/predict/live?season=${s}&round=${r}`);
       if (!res.ok) { const e = await res.json().catch(() => ({ detail: "API Error" })); throw new Error(e.detail || `HTTP ${res.status}`); }
       setData(await res.json());
     } catch (e: any) { setError(e.message || "Connection failed"); }
