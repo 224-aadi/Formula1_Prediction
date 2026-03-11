@@ -17,12 +17,13 @@ RUN apt-get update && apt-get install -y \
 
 # Copy only requirements to cache them in docker layer
 COPY pyproject.toml ./
+COPY src/ ./src/
 
 # Install pip dependencies (fastapi, uvicorn, lightgbm, fastf1, pandas)
 RUN pip install --no-cache-dir .
 
-# Copy the application source code and artifacts
-COPY src/ ./src/
+# Copy the application artifacts
+
 COPY data/processed/ ./data/processed/
 COPY artifacts/final/ ./artifacts/final/
 
