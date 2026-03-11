@@ -108,8 +108,25 @@ class DatasetBuilder:
                     pbar.set_postfix_str("results=empty")
                     continue
 
-                qua = self.fetch_round_qualifying(season, rnd)
                 df = res.merge(qua, on=["season", "round", "driverId"], how="left")
+
+                # --- NEW: Chaos & Weather Features ---
+                sc_heavy_circuits = {"monaco", "marina_bay", "baku", "jeddah", "albert_park", "miami", "las_vegas", "zandvoort"}
+                sc_med_circuits = {"interlagos", "montreal", "suzuka", "spa", "imola", "nurburgring"}
+                
+                def get_sc_prob(cid):
+                    c = str(cid).lower()
+                    if c in sc_heavy_circuits: return 0.85
+                    if c in sc_med_circuits: return 0.50
+                    return 0.20
+                    
+                if "circuitId" in df.columns:
+                    df["track_sc_prob"] = df["circuitId"].apply(get_sc_prob)
+                else:
+                    df["track_sc_prob"] = 0.20
+                    
+                df["is_wet_race"] = 0 # Placeholder: Could scrape weather from FastF1 if needed
+                # -------------------------------------
 
                 # ---- optional: merge FastF1 features for this race ----
                 if use_fastf1_for_season:

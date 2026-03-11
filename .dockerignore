@@ -1,0 +1,43 @@
+.git
+.gitignore
+.github/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Frontend
+frontend/
+node_modules/
+
+# Python caching
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+noxfile.py
+
+# Raw data and development caches (we don't want to ship massive caches)
+data/raw/
+!data/raw/.gitkeep
+data/interim/
+Notebooks/
+scripts/
+
+# Only include the specific artifacts we need, ignore the rest
+artifacts/
+!artifacts/final/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo

@@ -25,6 +25,8 @@ FEATURES = [
     "team_mech_dnf_rate",
     # Context
     "is_street_circuit",
+    "track_sc_prob",
+    "is_wet_race"
 ]
 
 

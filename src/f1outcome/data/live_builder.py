@@ -103,6 +103,21 @@ class LiveBuilder:
             "albert_park", "villeneuve", "sochi", "valencia", "adler", "detroit", "dallas"
         }
         df["is_street_circuit"] = df["circuitId"].apply(lambda c: 1 if str(c) in street_circuits else 0)
+        
+        # --- NEW: Chaos & Weather Features ---
+        sc_heavy_circuits = {"monaco", "marina_bay", "baku", "jeddah", "albert_park", "miami", "las_vegas", "zandvoort"}
+        sc_med_circuits = {"interlagos", "montreal", "suzuka", "spa", "imola", "nurburgring"}
+        
+        def get_sc_prob(cid):
+            c = str(cid).lower()
+            if c in sc_heavy_circuits: return 0.85
+            if c in sc_med_circuits: return 0.50
+            return 0.20
+            
+        df["track_sc_prob"] = df["circuitId"].apply(get_sc_prob)
+        df["is_wet_race"] = 0 # Placeholder until FastF1 weather is fully scraped
+        # -------------------------------------
+        
         df["trackId"] = 0 # Not used by model anymore
         
         # Normalze name for FastF1
