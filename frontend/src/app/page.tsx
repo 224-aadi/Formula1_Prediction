@@ -890,8 +890,11 @@ export default function Home() {
                   {/* Scrolling hex data */}
                   <div className="h-16 overflow-hidden text-[8px] font-mono text-red-500/70 leading-tight w-24 text-right">
                     <div className="hud-data-scroll">
-                      {Array.from({ length: 15 }).map((_, i) => (
-                        <div key={i}>{Math.random().toString(16).slice(2, 8).toUpperCase()} // {Math.floor(Math.random() * 99)}.{Math.floor(Math.random() * 9)}</div>
+                      {["A7F3C1 // 42.7", "E9D04B // 88.3", "1C6FA2 // 15.9", "8B2E5D // 67.1", "3D9F7E // 23.4",
+                        "F1A830 // 91.6", "5E4C9A // 34.8", "0D7BB6 // 56.2", "C83E12 // 79.5", "6AF4D9 // 11.0",
+                        "B15C27 // 48.3", "47E8A1 // 63.7", "9C2D6F // 82.1", "2FA5E3 // 29.6", "D64B18 // 75.4"
+                      ].map((s, i) => (
+                        <div key={i}>{s}</div>
                       ))}
                     </div>
                   </div>
