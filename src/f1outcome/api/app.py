@@ -368,7 +368,7 @@ def backtest(season: int = Query(..., ge=2019, le=2024)):
 
     for rnd in rounds:
         race_df = season_df[season_df["round"] == rnd].copy()
-        if race_df.empty or "positionOrder" not in race_df.columns:
+        if race_df.empty or "finishPosition" not in race_df.columns:
             continue
 
         X = race_df[FEATURES]
@@ -378,7 +378,7 @@ def backtest(season: int = Query(..., ge=2019, le=2024)):
         race_df["score_adj"] = race_df["score_rank"].to_numpy() - ALPHA * p_used
 
         predicted = race_df.sort_values("score_adj", ascending=False)["driverId"].tolist()
-        actual = race_df.sort_values("positionOrder")["driverId"].tolist()
+        actual = race_df.sort_values("finishPosition")["driverId"].tolist()
 
         # Top-3 hits
         pred_top3 = set(predicted[:3])
