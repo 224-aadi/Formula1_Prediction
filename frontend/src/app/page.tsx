@@ -459,7 +459,13 @@ export default function Home() {
           <div className="p-6 rounded-2xl bg-red-950/20 border border-red-900/30 animate-fade-in-up">
             <h3 className="font-bold text-red-400 mb-1">Prediction Failed</h3>
             <p className="text-sm text-red-300/70">{error}</p>
-            <p className="text-xs text-zinc-600 mt-3">Make sure the Python API is running: <code className="bg-zinc-800 px-2 py-0.5 rounded text-zinc-400">python -m uvicorn f1outcome.api.app:app --reload --app-dir src</code></p>
+            <div className="mt-3 p-2 rounded-lg bg-zinc-900/60 border border-white/5">
+              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Target API</p>
+              <code className="text-[10px] text-zinc-400 break-all">{API_BASE}</code>
+            </div>
+            {API_BASE.includes("localhost") && (
+              <p className="text-[10px] text-zinc-600 mt-2">Make sure your local server is running: <code className="bg-zinc-800 px-1 py-0.5 rounded">python -m uvicorn f1outcome.api.app:app</code></p>
+            )}
           </div>
         )}
 
