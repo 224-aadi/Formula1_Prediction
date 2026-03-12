@@ -329,3 +329,100 @@ def predict_live(
         "form_cutoff_raceId": cutoff_id
     }
 
+
+# ----------------------------
+# Backtest — Historical Accuracy
+# ----------------------------
+class RaceAccuracy(BaseModel):
+    season: int
+    round: int
+    raceName: Optional[str] = None
+    top3_hits: int
+    top3_possible: int
+    top10_precision: float
+    kendall_tau: float
+
+class BacktestResponse(BaseModel):
+    season: int
+    races: List[RaceAccuracy]
+    avg_top3_rate: float
+    avg_top10_precision: float
+    avg_kendall_tau: float
+
+
+@app.get("/predict/backtest", response_model=BacktestResponse)
+def backtest(season: int = Query(..., ge=2019, le=2024)):
+    from scipy.stats import kendalltau
+
+    df = get_dataset()
+    season_df = df[df["season"] == season].copy()
+
+    if season_df.empty:
+        raise HTTPException(status_code=404, detail=f"No data for season {season}")
+
+    ranker = get_ranker()
+    dnf_raw = get_dnf_raw()
+
+    rounds = sorted(season_df["round"].unique())
+    race_results: list[dict] = []
+
+    for rnd in rounds:
+        race_df = season_df[season_df["round"] == rnd].copy()
+        if race_df.empty or "positionOrder" not in race_df.columns:
+            continue
+
+        X = race_df[FEATURES]
+        race_df["score_rank"] = ranker.predict(X)
+        p_raw = dnf_raw.predict_proba(X)[:, 1]
+        p_used = np.minimum(p_raw, P_DNF_CAP)
+        race_df["score_adj"] = race_df["score_rank"].to_numpy() - ALPHA * p_used
+
+        predicted = race_df.sort_values("score_adj", ascending=False)["driverId"].tolist()
+        actual = race_df.sort_values("positionOrder")["driverId"].tolist()
+
+        # Top-3 hits
+        pred_top3 = set(predicted[:3])
+        actual_top3 = set(actual[:3])
+        top3_hits = len(pred_top3 & actual_top3)
+
+        # Top-10 precision
+        pred_top10 = set(predicted[:10])
+        actual_top10 = set(actual[:10])
+        top10_prec = len(pred_top10 & actual_top10) / 10.0
+
+        # Kendall Tau
+        pred_ranks = {d: i for i, d in enumerate(predicted)}
+        actual_ranks = {d: i for i, d in enumerate(actual)}
+        common = sorted(set(predicted) & set(actual))
+        if len(common) >= 2:
+            p_r = [pred_ranks[d] for d in common]
+            a_r = [actual_ranks[d] for d in common]
+            tau, _ = kendalltau(p_r, a_r)
+        else:
+            tau = 0.0
+
+        race_name = race_df["raceName"].iloc[0] if "raceName" in race_df.columns else None
+        race_results.append({
+            "season": int(season),
+            "round": int(rnd),
+            "raceName": race_name,
+            "top3_hits": top3_hits,
+            "top3_possible": 3,
+            "top10_precision": round(top10_prec, 3),
+            "kendall_tau": round(tau, 3),
+        })
+
+    if not race_results:
+        raise HTTPException(status_code=404, detail=f"No races with results for {season}")
+
+    avg_t3 = sum(r["top3_hits"] for r in race_results) / (3 * len(race_results))
+    avg_t10 = sum(r["top10_precision"] for r in race_results) / len(race_results)
+    avg_tau = sum(r["kendall_tau"] for r in race_results) / len(race_results)
+
+    return {
+        "season": season,
+        "races": race_results,
+        "avg_top3_rate": round(avg_t3, 3),
+        "avg_top10_precision": round(avg_t10, 3),
+        "avg_kendall_tau": round(avg_tau, 3),
+    }

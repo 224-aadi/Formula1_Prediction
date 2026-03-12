@@ -254,3 +254,20 @@ def fastf1_driver_features(season: int, rnd: int, cfg: FastF1FeatureConfig) -> p
         _log_failure(cfg, f"{season},{rnd},ALL :: EXC: {type(e).__name__}: {e}")
         # Never crash the dataset build
         return pd.DataFrame()
+
+
+def get_weather_flag(season: int, rnd: int, cfg: FastF1FeatureConfig) -> int:
+    """Return 1 if the race had rainfall, 0 otherwise. Falls back to 0 on any error."""
+    try:
+        import fastf1
+        _setup_fastf1(cfg)
+        sess = fastf1.get_session(season, rnd, "R")
+        sess.load(weather=True, laps=False, telemetry=False, messages=False)
+        
+        wd = sess.weather_data
+        if wd is not None and "Rainfall" in wd.columns:
+            if wd["Rainfall"].any():
+                return 1
+        return 0
+    except Exception:
+        return 0

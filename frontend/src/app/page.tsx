@@ -20,6 +20,22 @@ type PredictionResponse = {
   warnings: string[];
   form_cutoff_raceId: string;
 };
+type RaceAccuracy = {
+  season: number;
+  round: number;
+  raceName: string | null;
+  top3_hits: number;
+  top3_possible: number;
+  top10_precision: number;
+  kendall_tau: number;
+};
+type BacktestResponse = {
+  season: number;
+  races: RaceAccuracy[];
+  avg_top3_rate: number;
+  avg_top10_precision: number;
+  avg_kendall_tau: number;
+};
 
 // The API runs on port 8000 by default in the backend
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://f1-predictor-api-qpym.onrender.com";
@@ -233,10 +249,12 @@ export default function Home() {
   const [season, setSeason] = useState(2026);
   const [round, setRound] = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [tab, setTab] = useState<"grid" | "h2h">("grid");
+  const [tab, setTab] = useState<"grid" | "h2h" | "calendar" | "accuracy">("grid");
   const [cmp, setCmp] = useState<string[]>([]);
   const [calOpen, setCalOpen] = useState(false);
   const calRef = useRef<HTMLDivElement>(null);
+  const [backtest, setBacktest] = useState<BacktestResponse | null>(null);
+  const [btLoading, setBtLoading] = useState(false);
 
   const races = CALENDAR[season] || [];
   const race = races.find((r) => r.round === round);
@@ -455,9 +473,17 @@ export default function Home() {
             {/* Tab Bar */}
             <div className="flex items-center gap-4">
               <div className="flex gap-1 bg-zinc-900/60 p-1 rounded-xl border border-white/5">
-                {([["grid", "Race Prediction"], ["h2h", "Head-to-Head"]] as const).map(([key, label]) => (
-                  <button key={key} onClick={() => setTab(key)}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${tab === key ? "bg-zinc-700 text-white" : "text-zinc-500 hover:text-zinc-300"}`}>{label}</button>
+                {([["grid", "🏁 Prediction"], ["h2h", "⚔️ H2H"], ["calendar", "📅 Calendar"], ["accuracy", "📊 Accuracy"]] as const).map(([key, label]) => (
+                  <button key={key} onClick={() => {
+                    setTab(key);
+                    if (key === "accuracy" && !backtest && !btLoading) {
+                      setBtLoading(true);
+                      fetch(`${API_BASE}/predict/backtest?season=2024`)
+                        .then(r => r.json()).then(d => setBacktest(d)).catch(() => {})
+                        .finally(() => setBtLoading(false));
+                    }
+                  }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${tab === key ? "bg-zinc-700 text-white" : "text-zinc-500 hover:text-zinc-300"}`}>{label}</button>
                 ))}
               </div>
               {tab === "grid" && (
@@ -667,6 +693,127 @@ export default function Home() {
                       );
                     })()}
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* ───── CALENDAR TAB ───── */}
+            {tab === "calendar" && (
+              <div className="space-y-4 animate-fade-in-up">
+                <p className="text-xs text-zinc-500">Full {season} season schedule. Click ⚡ to instantly predict any race.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {races.map((r) => {
+                    const raceDate = new Date(`${r.date} ${season}`);
+                    const now = new Date();
+                    const diffMs = raceDate.getTime() - now.getTime();
+                    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                    const isPast = diffDays < 0;
+                    const isNext = !isPast && diffDays <= 14;
+                    return (
+                      <div key={r.round}
+                        className={`p-4 rounded-xl border transition-all hover:scale-[1.01] ${
+                          isNext ? "border-red-600/50 bg-red-950/20 shadow-lg shadow-red-900/10" :
+                          isPast ? "border-white/5 bg-zinc-900/20 opacity-70" :
+                          "border-white/5 bg-zinc-900/40"
+                        }`}>
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">{r.flag}</span>
+                            <div>
+                              <div className="text-sm font-bold text-white">{r.name}</div>
+                              <div className="text-[10px] text-zinc-500">{r.circuit}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-[10px] text-zinc-600">Rd {r.round}</div>
+                            <div className="text-[10px] text-zinc-500">{r.date}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            isPast ? "bg-zinc-800 text-zinc-500" :
+                            isNext ? "bg-red-600/20 text-red-400 animate-pulse" :
+                            "bg-emerald-950/50 text-emerald-400"
+                          }`}>
+                            {isPast ? "COMPLETED" : isNext ? `${diffDays}d AWAY — NEXT UP` : `${diffDays} days`}
+                          </div>
+                          <button onClick={() => { setRound(r.round); setTab("grid"); predict(season, r.round); }}
+                            className="flex items-center gap-1 px-3 py-1 rounded-lg bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white text-[10px] font-bold transition-all">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                            Predict
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ───── ACCURACY TAB ───── */}
+            {tab === "accuracy" && (
+              <div className="space-y-6 animate-fade-in-up">
+                {btLoading && (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="ml-3 text-sm text-zinc-400">Running backtest on 2024 season...</span>
+                  </div>
+                )}
+                {backtest && !btLoading && (
+                  <>
+                    {/* Summary Cards */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="p-4 rounded-xl bg-zinc-900/40 border border-white/5 text-center">
+                        <div className="text-[10px] uppercase tracking-widest text-zinc-600 font-bold mb-1">Avg Top-3 Rate</div>
+                        <div className="text-2xl font-black text-emerald-400">{(backtest.avg_top3_rate * 100).toFixed(1)}%</div>
+                      </div>
+                      <div className="p-4 rounded-xl bg-zinc-900/40 border border-white/5 text-center">
+                        <div className="text-[10px] uppercase tracking-widest text-zinc-600 font-bold mb-1">Avg Top-10 Precision</div>
+                        <div className="text-2xl font-black text-blue-400">{(backtest.avg_top10_precision * 100).toFixed(1)}%</div>
+                      </div>
+                      <div className="p-4 rounded-xl bg-zinc-900/40 border border-white/5 text-center">
+                        <div className="text-[10px] uppercase tracking-widest text-zinc-600 font-bold mb-1">Avg Kendall Tau</div>
+                        <div className="text-2xl font-black text-amber-400">{backtest.avg_kendall_tau.toFixed(3)}</div>
+                      </div>
+                    </div>
+
+                    {/* Per-Race Table */}
+                    <div className="rounded-2xl border border-white/5 overflow-hidden">
+                      <div className="px-5 py-3 border-b border-white/5 flex items-center justify-between text-[10px] text-zinc-600 font-bold uppercase tracking-wider">
+                        <span className="w-8">RD</span>
+                        <span className="flex-1">RACE</span>
+                        <span className="w-20 text-center">TOP-3</span>
+                        <span className="w-20 text-center">TOP-10</span>
+                        <span className="w-20 text-center">TAU</span>
+                      </div>
+                      {backtest.races.map((r) => {
+                        const t3pct = r.top3_hits / 3;
+                        const tauColor = r.kendall_tau > 0.5 ? "text-emerald-400" : r.kendall_tau > 0.3 ? "text-amber-400" : "text-red-400";
+                        const t10Color = r.top10_precision >= 0.7 ? "text-emerald-400" : r.top10_precision >= 0.5 ? "text-amber-400" : "text-red-400";
+                        return (
+                          <div key={r.round} className="flex items-center px-5 py-3 border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors">
+                            <span className="w-8 text-xs font-black text-zinc-500">{r.round}</span>
+                            <span className="flex-1 text-sm font-semibold text-white truncate">{r.raceName || `Round ${r.round}`}</span>
+                            <span className="w-20 text-center">
+                              <span className={`text-sm font-bold ${t3pct >= 0.66 ? "text-emerald-400" : t3pct >= 0.33 ? "text-amber-400" : "text-red-400"}`}>
+                                {r.top3_hits}/3
+                              </span>
+                            </span>
+                            <span className={`w-20 text-center text-sm font-mono font-bold ${t10Color}`}>
+                              {(r.top10_precision * 100).toFixed(0)}%
+                            </span>
+                            <span className={`w-20 text-center text-sm font-mono font-bold ${tauColor}`}>
+                              {r.kendall_tau.toFixed(3)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <p className="text-[10px] text-zinc-600 text-center">
+                      Backtest uses the frozen parquet dataset — model predicts each race, then compares against actual finishing order.
+                    </p>
+                  </>
                 )}
               </div>
             )}

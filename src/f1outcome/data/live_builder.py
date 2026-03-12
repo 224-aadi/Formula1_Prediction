@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from f1outcome.data.jolpica import JolpicaClient
-from f1outcome.data.fastf1_features import fastf1_driver_features, FastF1FeatureConfig
+from f1outcome.data.fastf1_features import fastf1_driver_features, FastF1FeatureConfig, get_weather_flag
 from f1outcome.data.build_dataset import _parse_time_to_ms, _to_int
 from f1outcome.config import SETTINGS
 
@@ -115,7 +115,12 @@ class LiveBuilder:
             return 0.20
             
         df["track_sc_prob"] = df["circuitId"].apply(get_sc_prob)
-        df["is_wet_race"] = 0 # Placeholder until FastF1 weather is fully scraped
+        # Live weather from FastF1 (falls back to 0 for future/unavailable races)
+        try:
+            wet_flag = get_weather_flag(season, rnd, FastF1FeatureConfig(cache_dir=Path("data/raw/fastf1_cache")))
+        except Exception:
+            wet_flag = 0
+        df["is_wet_race"] = wet_flag
         # -------------------------------------
         
         df["trackId"] = 0 # Not used by model anymore
