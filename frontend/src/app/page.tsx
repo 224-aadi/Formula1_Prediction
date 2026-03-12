@@ -479,7 +479,9 @@ export default function Home() {
                     if (key === "accuracy" && !backtest && !btLoading) {
                       setBtLoading(true);
                       fetch(`${API_BASE}/predict/backtest?season=2024`)
-                        .then(r => r.json()).then(d => setBacktest(d)).catch(() => {})
+                        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+                        .then(d => { if (d && d.races) setBacktest(d); else setBacktest(null); })
+                        .catch(() => setBacktest(null))
                         .finally(() => setBtLoading(false));
                     }
                   }}
@@ -759,21 +761,21 @@ export default function Home() {
                     <span className="ml-3 text-sm text-zinc-400">Running backtest on 2024 season...</span>
                   </div>
                 )}
-                {backtest && !btLoading && (
+                {backtest && backtest.races && !btLoading && (
                   <>
                     {/* Summary Cards */}
                     <div className="grid grid-cols-3 gap-3">
                       <div className="p-4 rounded-xl bg-zinc-900/40 border border-white/5 text-center">
                         <div className="text-[10px] uppercase tracking-widest text-zinc-600 font-bold mb-1">Avg Top-3 Rate</div>
-                        <div className="text-2xl font-black text-emerald-400">{(backtest.avg_top3_rate * 100).toFixed(1)}%</div>
+                        <div className="text-2xl font-black text-emerald-400">{((backtest.avg_top3_rate ?? 0) * 100).toFixed(1)}%</div>
                       </div>
                       <div className="p-4 rounded-xl bg-zinc-900/40 border border-white/5 text-center">
                         <div className="text-[10px] uppercase tracking-widest text-zinc-600 font-bold mb-1">Avg Top-10 Precision</div>
-                        <div className="text-2xl font-black text-blue-400">{(backtest.avg_top10_precision * 100).toFixed(1)}%</div>
+                        <div className="text-2xl font-black text-blue-400">{((backtest.avg_top10_precision ?? 0) * 100).toFixed(1)}%</div>
                       </div>
                       <div className="p-4 rounded-xl bg-zinc-900/40 border border-white/5 text-center">
                         <div className="text-[10px] uppercase tracking-widest text-zinc-600 font-bold mb-1">Avg Kendall Tau</div>
-                        <div className="text-2xl font-black text-amber-400">{backtest.avg_kendall_tau.toFixed(3)}</div>
+                        <div className="text-2xl font-black text-amber-400">{(backtest.avg_kendall_tau ?? 0).toFixed(3)}</div>
                       </div>
                     </div>
 
