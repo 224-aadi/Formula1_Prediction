@@ -761,6 +761,27 @@ export default function Home() {
                     <span className="ml-3 text-sm text-zinc-400">Running backtest on 2024 season...</span>
                   </div>
                 )}
+                {!btLoading && !backtest && (
+                  <div className="p-8 rounded-2xl bg-zinc-900/40 border border-white/5 text-center">
+                    <div className="text-3xl mb-3">📊</div>
+                    <h3 className="text-lg font-bold text-white mb-2">Backtest Unavailable</h3>
+                    <p className="text-sm text-zinc-500 mb-4 max-w-md mx-auto">
+                      The backend API needs the <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400 text-xs">/predict/backtest</code> endpoint.
+                      If you just deployed, wait a few minutes for Render to rebuild.
+                    </p>
+                    <button onClick={() => {
+                      setBtLoading(true);
+                      fetch(`${API_BASE}/predict/backtest?season=2024`)
+                        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+                        .then(d => { if (d && d.races) setBacktest(d); else setBacktest(null); })
+                        .catch(() => setBacktest(null))
+                        .finally(() => setBtLoading(false));
+                    }}
+                      className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold transition-all">
+                      ⟳ Retry
+                    </button>
+                  </div>
+                )}
                 {backtest && backtest.races && !btLoading && (
                   <>
                     {/* Summary Cards */}
