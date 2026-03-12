@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell,
+  LineChart, Line, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, ScatterChart, Scatter, ZAxis
+} from "recharts";
 
 /* ═══════════════════ TYPES ═══════════════════ */
 type ScoredDriver = {
@@ -534,6 +538,61 @@ export default function Home() {
                   })}
                 </div>
 
+                {/* Insights Section */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in-up stagger-4">
+                  {/* Score Distribution */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-zinc-900/20">
+                    <div className="text-[10px] uppercase tracking-widest text-zinc-600 font-bold mb-4">Score Distribution</div>
+                    <div className="h-48 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data.order.map(d => ({ name: fmt(d.driverId), score: d.score_adj, color: td(d.driverId, season).accent }))}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                          <XAxis dataKey="name" hide />
+                          <YAxis domain={['auto', 'auto']} hide />
+                          <RechartsTooltip 
+                             contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: '8px', fontSize: '10px' }}
+                             itemStyle={{ color: '#fff', fontWeight: 'bold' }}
+                             cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                          />
+                          <Bar dataKey="score">
+                            {data.order.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={td(entry.driverId, season).accent} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* DNF vs Pace Scatter */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-zinc-900/20">
+                    <div className="text-[10px] uppercase tracking-widest text-zinc-600 font-bold mb-4">Pace vs. DNF Risk</div>
+                    <div className="h-48 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                          <XAxis type="number" dataKey="pace" name="Pace Score" unit="" hide />
+                          <YAxis type="number" dataKey="dnf" name="DNF Risk" unit="%" hide />
+                          <ZAxis type="category" dataKey="name" name="Driver" />
+                          <RechartsTooltip cursor={{ strokeDasharray: '3 3' }} 
+                             contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: '8px', fontSize: '10px' }}
+                          />
+                          <Scatter name="Drivers" data={data.order.map(d => ({ 
+                            name: fmt(d.driverId), 
+                            pace: d.score_rank, 
+                            dnf: d.p_dnf * 100,
+                            fill: td(d.driverId, season).accent 
+                          }))}>
+                            {data.order.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={td(entry.driverId, season).accent} />
+                            ))}
+                          </Scatter>
+                        </ScatterChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Full Grid */}
                 <div className="rounded-2xl border border-white/5 overflow-hidden bg-zinc-900/20">
                   {/* Legend */}
@@ -670,6 +729,29 @@ export default function Home() {
                       })}
                     </div>
 
+                    {/* Radar Comparison */}
+                    <div className="mt-4 p-5 rounded-2xl border border-white/5 bg-zinc-900/40">
+                      <div className="text-[10px] text-zinc-600 text-center mb-6 font-bold uppercase tracking-widest">Performance Radar</div>
+                      <div className="h-64 w-full flex justify-center">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RadarChart cx="50%" cy="50%" outerRadius="80%" data={[
+                            { subject: 'Pace', A: cmpData[0].score_rank * 10, B: cmpData[1].score_rank * 10, full: 100 },
+                            { subject: 'Net Score', A: cmpData[0].score_adj * 10, B: cmpData[1].score_adj * 10, full: 100 },
+                            { subject: 'Reliability', A: (1 - cmpData[0].p_dnf) * 100, B: (1 - cmpData[1].p_dnf) * 100, full: 100 },
+                            { subject: 'DNF Safety', A: (1 - cmpData[0].p_dnf_raw) * 100, B: (1 - cmpData[1].p_dnf_raw) * 100, full: 100 },
+                            { subject: 'Position', A: (1 - (data!.order.findIndex(o => o.driverId === cmpData[0].driverId) / 20)) * 100, B: (1 - (data!.order.findIndex(o => o.driverId === cmpData[1].driverId) / 20)) * 100, full: 100 }
+                          ]}>
+                            <PolarGrid stroke="#27272a" />
+                            <PolarAngleAxis dataKey="subject" tick={{ fill: '#71717a', fontSize: 10 }} />
+                            <PolarRadiusAxis angle={30} domain={[0, 100]} hide />
+                            <Radar name={fmt(cmpData[0].driverId)} dataKey="A" stroke={td(cmpData[0].driverId, season).accent} fill={td(cmpData[0].driverId, season).accent} fillOpacity={0.4} />
+                            <Radar name={fmt(cmpData[1].driverId)} dataKey="B" stroke={td(cmpData[1].driverId, season).accent} fill={td(cmpData[1].driverId, season).accent} fillOpacity={0.4} />
+                            <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
+                          </RadarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
                     {/* Delta Bar */}
                     {(() => {
                       const delta = cmpData[0].score_adj - cmpData[1].score_adj;
@@ -797,6 +879,26 @@ export default function Home() {
                       <div className="p-4 rounded-xl bg-zinc-900/40 border border-white/5 text-center">
                         <div className="text-[10px] uppercase tracking-widest text-zinc-600 font-bold mb-1">Avg Kendall Tau</div>
                         <div className="text-2xl font-black text-amber-400">{(backtest.avg_kendall_tau ?? 0).toFixed(3)}</div>
+                      </div>
+                    </div>
+
+                    {/* Trend Chart */}
+                    <div className="p-5 rounded-2xl border border-white/5 bg-zinc-900/20">
+                      <div className="text-[10px] uppercase tracking-widest text-zinc-600 font-bold mb-4">Season Performance Trend</div>
+                      <div className="h-48 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={backtest.races.map(r => ({ name: `R${r.round}`, top3: (r.top3_hits/3)*100, tau: r.kendall_tau }))}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                            <XAxis dataKey="name" fontSize={10} stroke="#52525b" />
+                            <YAxis domain={[0, 100]} hide />
+                            <RechartsTooltip 
+                               contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: '8px', fontSize: '10px' }}
+                            />
+                            <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
+                            <Line type="monotone" dataKey="top3" name="Top-3 %" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981', r: 3 }} />
+                            <Line type="monotone" dataKey="tau" name="Kendall Tau" stroke="#f59e0b" strokeWidth={2} dot={{ fill: '#f59e0b', r: 3 }} yAxisId={0} />
+                          </LineChart>
+                        </ResponsiveContainer>
                       </div>
                     </div>
 
