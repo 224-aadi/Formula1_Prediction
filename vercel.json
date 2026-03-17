@@ -1,10 +1,7 @@
 {
   "functions": {
     "api/**/*.py": {
-      "includeFiles": [
-        "artifacts/final/**",
-        "data/processed/**"
-      ]
+      "includeFiles": "{artifacts/final/**,data/processed/**}"
     }
   }
 }
