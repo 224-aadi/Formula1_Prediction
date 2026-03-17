@@ -5,6 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "f1outcome"
 version = "0.1.0"
+requires-python = ">=3.10"
 description = "Formula 1 Race Outcome Prediction"
 authors = [{name = "User", email = "user@example.com"}]
 dependencies = [
