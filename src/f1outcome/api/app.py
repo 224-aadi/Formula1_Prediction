@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional, List
+import traceback
 
 import numpy as np
 import pandas as pd
@@ -202,9 +203,13 @@ def predict_from_parquet(
     if missing:
         raise HTTPException(status_code=500, detail=f"Dataset missing required feature columns: {missing}")
 
-    ranker = get_ranker()
-    dnf_raw = get_dnf_raw()
-    dnf_cal = get_dnf_cal()
+    try:
+        ranker = get_ranker()
+        dnf_raw = get_dnf_raw()
+        dnf_cal = get_dnf_cal()
+    except Exception as exc:
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Model load failed: {type(exc).__name__}: {exc}")
     
     # Debug Telemetry as requested by User
     f1_cols = [c for c in ["q_s1_gap", "q_s2_gap", "q_s3_gap", "fp_longrun_gap"] if c in race_df.columns]
