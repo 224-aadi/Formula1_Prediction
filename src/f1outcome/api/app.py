@@ -8,11 +8,14 @@ import traceback
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from f1outcome.models.ranker import load as load_ranker, FEATURES
 from f1outcome.models.dnf import load as load_dnf
 from f1outcome.data.live_builder import LiveBuilder
+from f1outcome.api.frontend import PRODUCT_HTML
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -44,6 +47,10 @@ MODE: str = "subtract_cap"  # default combine rule: "subtract" or "subtract_cap"
 
 app = FastAPI(title="F1 Outcome Lab")
 
+PUBLIC_DIR = Path("frontend/public")
+if PUBLIC_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=str(PUBLIC_DIR)), name="assets")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -60,6 +67,7 @@ class HomeResponse(BaseModel):
     message: str
     docs: str
     predict: str
+    predict_live: str
 
 
 class MetaResponse(BaseModel):
@@ -145,8 +153,13 @@ def get_dataset() -> pd.DataFrame:
 # ----------------------------
 # Routes
 # ----------------------------
-@app.get("/", response_model=HomeResponse)
+@app.get("/", response_class=HTMLResponse)
 def home():
+    return PRODUCT_HTML
+
+
+@app.get("/health", response_model=HomeResponse)
+def health():
     return {
         "message": "F1 Outcome Lab is running",
         "docs": "/docs",
@@ -297,9 +310,13 @@ def predict_live(
     if missing:
         raise HTTPException(status_code=500, detail=f"Dataset missing required feature columns: {missing}")
         
-    ranker = get_ranker()
-    dnf_raw = get_dnf_raw()
-    dnf_cal = get_dnf_cal()
+    try:
+        ranker = get_ranker()
+        dnf_raw = get_dnf_raw()
+        dnf_cal = get_dnf_cal()
+    except Exception as exc:
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Model load failed: {type(exc).__name__}: {exc}")
     
     X = race_df[FEATURES]
 

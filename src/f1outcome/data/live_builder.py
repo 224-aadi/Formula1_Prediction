@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import os
 from pathlib import Path
 from f1outcome.data.jolpica import JolpicaClient
 from f1outcome.data.fastf1_features import fastf1_driver_features, FastF1FeatureConfig, get_weather_flag
@@ -10,9 +11,10 @@ class LiveBuilder:
     """Builds a feature matrix for an emerging/upcoming race weekend."""
     def __init__(self, historical_parquet: str | Path):
         self.hist_df = pd.read_parquet(historical_parquet)
+        cache_root = Path(os.environ.get("F1_CACHE_DIR", "/tmp/f1outcome_cache"))
         self.client = JolpicaClient(
             base_url=SETTINGS.jolpica_base,
-            cache_dir=Path("data/raw/jolpica_cache"),
+            cache_dir=cache_root / "jolpica",
             min_interval_s=0.2
         )
         
@@ -117,7 +119,7 @@ class LiveBuilder:
         df["track_sc_prob"] = df["circuitId"].apply(get_sc_prob)
         # Live weather from FastF1 (falls back to 0 for future/unavailable races)
         try:
-            wet_flag = get_weather_flag(season, rnd, FastF1FeatureConfig(cache_dir=Path("data/raw/fastf1_cache")))
+            wet_flag = get_weather_flag(season, rnd, FastF1FeatureConfig(cache_dir=Path(os.environ.get("F1_CACHE_DIR", "/tmp/f1outcome_cache")) / "fastf1"))
         except Exception:
             wet_flag = 0
         df["is_wet_race"] = wet_flag
@@ -177,7 +179,7 @@ class LiveBuilder:
         df = df.groupby(["season", "round", "constructorId"], group_keys=False).apply(calc_teammate_delta)
         
         # 4. Fetch Live FastF1
-        cfg = FastF1FeatureConfig(cache_dir=Path("data/raw/fastf1_cache"))
+        cfg = FastF1FeatureConfig(cache_dir=Path(os.environ.get("F1_CACHE_DIR", "/tmp/f1outcome_cache")) / "fastf1")
         try:
             f1 = fastf1_driver_features(season, rnd, cfg)
             if not f1.empty:
