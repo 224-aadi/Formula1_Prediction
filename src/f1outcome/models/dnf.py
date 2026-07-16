@@ -1,7 +1,11 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING, Any
+
 import joblib
 import pandas as pd
-from lightgbm import LGBMClassifier
+
+if TYPE_CHECKING:
+    from lightgbm import LGBMClassifier
 
 from f1outcome.models.ranker import FEATURES  # reuse same features list
 
@@ -29,6 +33,8 @@ def is_dnf_status(status: str | None) -> int:
     return 1
 
 def train_dnf(df: pd.DataFrame) -> LGBMClassifier:
+    from lightgbm import LGBMClassifier
+
     if "status" not in df.columns:
         raise ValueError("DNF training requires a 'status' column in the dataset.")
 
@@ -53,5 +59,5 @@ def train_dnf(df: pd.DataFrame) -> LGBMClassifier:
 def save(model: LGBMClassifier, path: str):
     joblib.dump(model, path)
 
-def load(path: str) -> LGBMClassifier:
+def load(path: str) -> Any:
     return joblib.load(path)

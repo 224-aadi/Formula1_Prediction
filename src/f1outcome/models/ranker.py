@@ -1,7 +1,11 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING, Any
+
 import joblib
 import pandas as pd
-from lightgbm import LGBMRanker
+
+if TYPE_CHECKING:
+    from lightgbm import LGBMRanker
 
 FEATURES = [
     "grid",
@@ -35,6 +39,8 @@ def make_group(df: pd.DataFrame) -> list[int]:
     return df.groupby("raceId").size().tolist()
 
 def train_ranker(df: pd.DataFrame) -> LGBMRanker:
+    from lightgbm import LGBMRanker
+
     df = df.dropna(subset=["relevance"]).copy()
     df = df.sort_values(["season", "round", "raceId"])
 
@@ -58,5 +64,5 @@ def train_ranker(df: pd.DataFrame) -> LGBMRanker:
 def save(model: LGBMRanker, path: str):
     joblib.dump(model, path)
 
-def load(path: str) -> LGBMRanker:
+def load(path: str) -> Any:
     return joblib.load(path)
