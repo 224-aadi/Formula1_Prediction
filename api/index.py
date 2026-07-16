@@ -7,7 +7,7 @@ import site
 os.environ.setdefault("MPLCONFIGDIR", "/tmp")
 
 for site_packages in site.getsitepackages():
-    for libgomp_path in glob.glob(os.path.join(site_packages, "scikit_learn.libs", "libgomp*.so*")):
+    for libgomp_path in glob.glob(os.path.join(site_packages, "*.libs", "libgomp*.so*")):
         ctypes.CDLL(libgomp_path, mode=ctypes.RTLD_GLOBAL)
         break
 
