@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING, Any
 import joblib
 import pandas as pd
 
+from f1outcome.runtime import prepare_lightgbm_runtime
+
 if TYPE_CHECKING:
     from lightgbm import LGBMClassifier
 
@@ -33,6 +35,7 @@ def is_dnf_status(status: str | None) -> int:
     return 1
 
 def train_dnf(df: pd.DataFrame) -> LGBMClassifier:
+    prepare_lightgbm_runtime()
     from lightgbm import LGBMClassifier
 
     if "status" not in df.columns:
@@ -60,4 +63,5 @@ def save(model: LGBMClassifier, path: str):
     joblib.dump(model, path)
 
 def load(path: str) -> Any:
+    prepare_lightgbm_runtime()
     return joblib.load(path)

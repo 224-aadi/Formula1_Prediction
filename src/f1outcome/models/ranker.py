@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING, Any
 import joblib
 import pandas as pd
 
+from f1outcome.runtime import prepare_lightgbm_runtime
+
 if TYPE_CHECKING:
     from lightgbm import LGBMRanker
 
@@ -39,6 +41,7 @@ def make_group(df: pd.DataFrame) -> list[int]:
     return df.groupby("raceId").size().tolist()
 
 def train_ranker(df: pd.DataFrame) -> LGBMRanker:
+    prepare_lightgbm_runtime()
     from lightgbm import LGBMRanker
 
     df = df.dropna(subset=["relevance"]).copy()
@@ -65,4 +68,5 @@ def save(model: LGBMRanker, path: str):
     joblib.dump(model, path)
 
 def load(path: str) -> Any:
+    prepare_lightgbm_runtime()
     return joblib.load(path)
