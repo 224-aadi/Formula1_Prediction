@@ -8,11 +8,26 @@ import sys
 
 
 def prepare_lightgbm_runtime() -> None:
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    candidate_libs = [
+        os.path.join(repo_root, "vendor", "libgomp.so.1"),
+        "/var/task/vendor/libgomp.so.1",
+    ]
+
     for base_path in [*site.getsitepackages(), *sys.path, "/tmp/_vc_deps"]:
         if not base_path or not os.path.exists(base_path):
             continue
 
-        for libgomp_path in glob.glob(os.path.join(base_path, "**", "libgomp*.so*"), recursive=True):
+        candidate_libs.extend(glob.glob(os.path.join(base_path, "**", "libgomp*.so*"), recursive=True))
+
+    for libgomp_path in candidate_libs:
+        if not os.path.exists(libgomp_path):
+            continue
+
+        for base_path in [*site.getsitepackages(), *sys.path, "/tmp/_vc_deps"]:
+            if not base_path or not os.path.exists(base_path):
+                continue
+
             for link_dir in [
                 os.path.dirname(libgomp_path),
                 *glob.glob(os.path.join(base_path, "**", "lightgbm", "lib"), recursive=True),
@@ -25,5 +40,8 @@ def prepare_lightgbm_runtime() -> None:
                 except OSError:
                     pass
 
+        try:
             ctypes.CDLL(libgomp_path, mode=ctypes.RTLD_GLOBAL)
             return
+        except OSError:
+            continue
