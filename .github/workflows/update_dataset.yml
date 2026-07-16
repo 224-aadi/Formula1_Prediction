@@ -6,12 +6,21 @@ on:
     - cron: '0 12 * * 1'
   workflow_dispatch:
 
+concurrency:
+  group: refresh-production-f1-data
+  cancel-in-progress: false
+
 jobs:
   refresh-production-data:
     runs-on: ubuntu-latest
 
     permissions:
       contents: write
+
+    env:
+      F1_CACHE_DIR: /tmp/f1outcome_cache
+      MPLCONFIGDIR: /tmp/matplotlib
+      LOKY_MAX_CPU_COUNT: "2"
 
     steps:
     - name: Check out repository
@@ -30,7 +39,12 @@ jobs:
 
     - name: Rebuild production dataset and retrain models
       run: |
+        mkdir -p "$F1_CACHE_DIR" "$MPLCONFIGDIR"
         python scripts/refresh_production.py --start-season 2019
+
+    - name: Run regression tests against refreshed artifacts
+      run: |
+        python -m pytest -q tests/
 
     - name: Commit and Push Changes
       run: |

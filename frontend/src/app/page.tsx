@@ -16,11 +16,19 @@ type ScoredDriver = {
 };
 type PredictionResponse = {
   raceId: string;
+  raceName?: string | null;
   order: ScoredDriver[];
   alpha: number;
   p_dnf_cap: number;
   mode: string;
-  sources?: { ergast: boolean; fastf1: boolean; dataset_form: boolean };
+  prediction_type?: "live_qualifying" | "pre_qualifying_forecast" | string;
+  sources?: {
+    ergast: boolean;
+    fastf1: boolean;
+    dataset_form: boolean;
+    pre_qualifying_forecast?: boolean;
+    schedule_fallback?: boolean;
+  };
   warnings?: string[];
   form_cutoff_raceId?: string;
 };
@@ -311,6 +319,15 @@ export default function Home() {
 
   const race = races.find((r) => r.round === round);
   const latestRound = races.length ? Math.max(...races.map((r) => r.round)) : round;
+  const predictedRound = data ? Number(data.raceId.split("_")[1] || round) : round;
+  const displayRace = data && predictedRound !== round
+    ? raceDetails({
+        season,
+        round: predictedRound,
+        raceId: data.raceId,
+        raceName: data.raceName || data.raceId,
+      })
+    : race;
 
   // Close calendar on outside click
   useEffect(() => {
@@ -369,11 +386,13 @@ export default function Home() {
     return () => { cancelled = true; };
   }, [season]);
 
-  const predict = useCallback(async (s: number, r: number, kind: "dataset" | "live" = "dataset") => {
+  const predict = useCallback(async (s: number, r: number, kind: "dataset" | "live" | "next" = "dataset") => {
     setLoading(true); setError(null); setExpanded(null);
     try {
-      const endpoint = kind === "live" ? "live" : "from_parquet";
-      const res = await fetch(`${API_BASE}/predict/${endpoint}?season=${s}&round=${r}`);
+      const url = kind === "next"
+        ? `${API_BASE}/predict/next?season=${s}`
+        : `${API_BASE}/predict/${kind === "live" ? "live" : "from_parquet"}?season=${s}&round=${r}`;
+      const res = await fetch(url);
       if (!res.ok) { const e = await res.json().catch(() => ({ detail: "API Error" })); throw new Error(e.detail || `HTTP ${res.status}`); }
       const payload: PredictionResponse = await res.json();
       setData({
@@ -478,23 +497,26 @@ export default function Home() {
                 Predict
               </>}
             </button>
-            <button onClick={() => predict(season, latestRound + 1, "live")} disabled={loading || loadingRaces}
+            <button onClick={() => predict(season, latestRound + 1, "next")} disabled={loading || loadingRaces}
               className="px-5 py-2.5 rounded-xl border border-white/10 bg-zinc-900/70 hover:bg-zinc-800 active:scale-95 text-zinc-200 font-black text-sm uppercase tracking-wider transition-all disabled:opacity-40 flex-shrink-0">
-              Next Live
+              Next Race
             </button>
           </div>
         </section>
 
         {/* ═══ RACE HERO BANNER ═══ */}
-        {race && data && !loading && (
+        {displayRace && data && !loading && (
           <section className="mb-8 relative overflow-hidden rounded-2xl border border-white/5 checkered-bg animate-fade-in-up stagger-1">
             <div className="absolute inset-0 bg-gradient-to-r from-[#09090B] via-transparent to-[#09090B]" />
             <div className="relative z-10 flex items-center justify-between px-6 py-5">
               <div className="flex items-center gap-4">
-                <span className="text-5xl animate-flag-wave">{race.flag}</span>
+                <span className="text-5xl animate-flag-wave">{displayRace.flag}</span>
                 <div>
-                  <h2 className="text-2xl sm:text-3xl font-black tracking-tight">{race.name}</h2>
-                  <p className="text-zinc-500 text-xs mt-0.5">{race.circuit} &middot; Round {round} &middot; {season}</p>
+                  <h2 className="text-2xl sm:text-3xl font-black tracking-tight">{displayRace.name}</h2>
+                  <p className="text-zinc-500 text-xs mt-0.5">
+                    {displayRace.circuit} &middot; Round {displayRace.round} &middot; {season}
+                    {data.prediction_type === "pre_qualifying_forecast" ? " · Pre-qualifying forecast" : ""}
+                  </p>
                 </div>
               </div>
               <div className="hidden sm:flex items-center gap-6 text-right">
@@ -898,7 +920,7 @@ export default function Home() {
             {/* ───── CALENDAR TAB ───── */}
             {tab === "calendar" && (
               <div className="space-y-4 animate-fade-in-up">
-                <p className="text-xs text-zinc-500">Completed {season} races from the production dataset. Use Next Live for the upcoming race once qualifying is posted.</p>
+                <p className="text-xs text-zinc-500">Completed {season} races from the production dataset. Use Next Race for the upcoming forecast; it upgrades automatically when qualifying is posted.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {races.map((r) => {
                     return (

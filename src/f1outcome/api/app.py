@@ -68,6 +68,7 @@ class HomeResponse(BaseModel):
     docs: str
     predict: str
     predict_live: str
+    predict_next: str
 
 
 class MetaResponse(BaseModel):
@@ -104,10 +105,12 @@ class PredictResponse(BaseModel):
 
 class PredictLiveResponse(BaseModel):
     raceId: str
+    raceName: Optional[str] = None
     order: List[ScoredDriver]
     alpha: float
     p_dnf_cap: float
     mode: str
+    prediction_type: str
     sources: dict
     warnings: list
     form_cutoff_raceId: str
@@ -165,6 +168,7 @@ def health():
         "docs": "/docs",
         "predict": "/predict/from_parquet",
         "predict_live": "/predict/live",
+        "predict_next": "/predict/next",
     }
 
 
@@ -269,15 +273,20 @@ def predict_live(
     season: int = Query(..., ge=2024),
     round: int = Query(..., ge=1),
     mode: str = Query(default=MODE, pattern="^(subtract|subtract_cap)$"),
+    allow_prequalifying: bool = Query(default=True),
 ):
     builder = LiveBuilder(DATASET_PATH)
     try:
-        race_df, sources, warnings, cutoff_id = builder.build_upcoming_race(season, round)
+        race_df, sources, warnings, cutoff_id = builder.build_upcoming_race(
+            season,
+            round,
+            allow_prequalifying=allow_prequalifying,
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
         
     if race_df.empty:
-        raise HTTPException(status_code=404, detail=f"No drivers found for {season} round {round} from Ergast Qualifying.")
+        raise HTTPException(status_code=404, detail=f"No drivers found for {season} round {round}.")
         
     # --- Strict Verification Logging (Test 1, 2, 4) ---
     print("\n" + "="*50)
@@ -338,18 +347,44 @@ def predict_live(
     race_df = race_df.sort_values("score_adj", ascending=False)
     
     race_id = f"{season}_{round}"
+    race_name = None
+    if "raceName" in race_df.columns and not race_df["raceName"].dropna().empty:
+        race_name = str(race_df["raceName"].dropna().iloc[0])
+    prediction_type = "pre_qualifying_forecast" if sources.get("pre_qualifying_forecast") else "live_qualifying"
     order = race_df[["driverId", "score_rank", "p_dnf_raw", "p_dnf", "score_adj"]].to_dict(orient="records")
 
     return {
         "raceId": race_id,
+        "raceName": race_name,
         "order": order,
         "alpha": ALPHA,
         "p_dnf_cap": P_DNF_CAP,
         "mode": mode,
+        "prediction_type": prediction_type,
         "sources": sources,
         "warnings": warnings,
         "form_cutoff_raceId": cutoff_id
     }
+
+
+@app.get("/predict/next", response_model=PredictLiveResponse)
+def predict_next(
+    season: int | None = Query(default=None, ge=2024),
+    mode: str = Query(default=MODE, pattern="^(subtract|subtract_cap)$"),
+):
+    df = get_dataset()
+    target_season = int(season) if season is not None else int(df["season"].max())
+    season_df = df[df["season"] == target_season]
+    if season_df.empty:
+        raise HTTPException(status_code=404, detail=f"No data for season {target_season}")
+
+    target_round = int(season_df["round"].max()) + 1
+    return predict_live(
+        season=target_season,
+        round=target_round,
+        mode=mode,
+        allow_prequalifying=True,
+    )
 
 
 # ----------------------------

@@ -7,6 +7,31 @@ from f1outcome.data.fastf1_features import fastf1_driver_features, FastF1Feature
 from f1outcome.data.build_dataset import _parse_time_to_ms, _to_int
 from f1outcome.config import SETTINGS
 
+FALLBACK_RACE_METADATA = {
+    (2026, 1): {"raceName": "Australian Grand Prix", "circuitId": "albert_park", "circuitName": "Albert Park Grand Prix Circuit", "date": "2026-03-08"},
+    (2026, 2): {"raceName": "Chinese Grand Prix", "circuitId": "shanghai", "circuitName": "Shanghai International Circuit", "date": "2026-03-15"},
+    (2026, 3): {"raceName": "Japanese Grand Prix", "circuitId": "suzuka", "circuitName": "Suzuka Circuit", "date": "2026-03-29"},
+    (2026, 4): {"raceName": "Miami Grand Prix", "circuitId": "miami", "circuitName": "Miami International Autodrome", "date": "2026-05-03"},
+    (2026, 5): {"raceName": "Canadian Grand Prix", "circuitId": "villeneuve", "circuitName": "Circuit Gilles Villeneuve", "date": "2026-05-24"},
+    (2026, 6): {"raceName": "Monaco Grand Prix", "circuitId": "monaco", "circuitName": "Circuit de Monaco", "date": "2026-06-07"},
+    (2026, 7): {"raceName": "Barcelona Grand Prix", "circuitId": "catalunya", "circuitName": "Circuit de Barcelona-Catalunya", "date": "2026-06-14"},
+    (2026, 8): {"raceName": "Austrian Grand Prix", "circuitId": "red_bull_ring", "circuitName": "Red Bull Ring", "date": "2026-06-28"},
+    (2026, 9): {"raceName": "British Grand Prix", "circuitId": "silverstone", "circuitName": "Silverstone Circuit", "date": "2026-07-05"},
+    (2026, 10): {"raceName": "Belgian Grand Prix", "circuitId": "spa", "circuitName": "Circuit de Spa-Francorchamps", "date": "2026-07-19"},
+    (2026, 11): {"raceName": "Hungarian Grand Prix", "circuitId": "hungaroring", "circuitName": "Hungaroring", "date": "2026-07-26"},
+    (2026, 12): {"raceName": "Dutch Grand Prix", "circuitId": "zandvoort", "circuitName": "Circuit Zandvoort", "date": "2026-08-23"},
+    (2026, 13): {"raceName": "Italian Grand Prix", "circuitId": "monza", "circuitName": "Autodromo Nazionale di Monza", "date": "2026-09-06"},
+    (2026, 14): {"raceName": "Spanish Grand Prix", "circuitId": "madrid", "circuitName": "Madring", "date": "2026-09-13"},
+    (2026, 15): {"raceName": "Azerbaijan Grand Prix", "circuitId": "baku", "circuitName": "Baku City Circuit", "date": "2026-09-26"},
+    (2026, 16): {"raceName": "Singapore Grand Prix", "circuitId": "marina_bay", "circuitName": "Marina Bay Street Circuit", "date": "2026-10-11"},
+    (2026, 17): {"raceName": "United States Grand Prix", "circuitId": "americas", "circuitName": "Circuit of the Americas", "date": "2026-10-25"},
+    (2026, 18): {"raceName": "Mexico City Grand Prix", "circuitId": "rodriguez", "circuitName": "Autodromo Hermanos Rodriguez", "date": "2026-11-01"},
+    (2026, 19): {"raceName": "Sao Paulo Grand Prix", "circuitId": "interlagos", "circuitName": "Autodromo Jose Carlos Pace", "date": "2026-11-08"},
+    (2026, 20): {"raceName": "Las Vegas Grand Prix", "circuitId": "las_vegas", "circuitName": "Las Vegas Strip Circuit", "date": "2026-11-21"},
+    (2026, 21): {"raceName": "Qatar Grand Prix", "circuitId": "losail", "circuitName": "Lusail International Circuit", "date": "2026-11-29"},
+    (2026, 22): {"raceName": "Abu Dhabi Grand Prix", "circuitId": "yas_marina", "circuitName": "Yas Marina Circuit", "date": "2026-12-06"},
+}
+
 class LiveBuilder:
     """Builds a feature matrix for an emerging/upcoming race weekend."""
     def __init__(self, historical_parquet: str | Path):
@@ -17,6 +42,82 @@ class LiveBuilder:
             cache_dir=cache_root / "jolpica",
             min_interval_s=0.2
         )
+
+    @staticmethod
+    def _grid_bucket(grid):
+        if pd.isna(grid) or grid <= 0:
+            return 4
+        if grid <= 3:
+            return 1
+        if grid <= 10:
+            return 2
+        if grid <= 20:
+            return 3
+        return 4
+
+    @staticmethod
+    def _is_street_circuit(circuit_id: str | None) -> int:
+        street_circuits = {
+            "monaco", "marina_bay", "baku", "jeddah", "miami", "las_vegas",
+            "albert_park", "villeneuve", "sochi", "valencia", "adler", "detroit", "dallas"
+        }
+        return 1 if str(circuit_id).lower() in street_circuits else 0
+
+    @staticmethod
+    def _safety_car_probability(circuit_id: str | None) -> float:
+        sc_heavy_circuits = {"monaco", "marina_bay", "baku", "jeddah", "albert_park", "miami", "las_vegas", "zandvoort"}
+        sc_med_circuits = {"interlagos", "montreal", "suzuka", "spa", "imola", "nurburgring"}
+        circuit = str(circuit_id).lower()
+        if circuit in sc_heavy_circuits:
+            return 0.85
+        if circuit in sc_med_circuits:
+            return 0.50
+        return 0.20
+
+    @staticmethod
+    def _add_teammate_delta(df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        df["teammateFormFinishDelta"] = 0.0
+
+        for _, group_idx in df.groupby(["season", "round", "constructorId"], dropna=False).groups.items():
+            group = df.loc[group_idx]
+            for idx, row in group.iterrows():
+                teammates = group[group["driverId"] != row["driverId"]]
+                if not teammates.empty:
+                    teammate_form = teammates["driverFormAvgFinish"].mean()
+                    df.at[idx, "teammateFormFinishDelta"] = row["driverFormAvgFinish"] - teammate_form
+
+        return df
+
+    def fetch_race_metadata(self, season: int, rnd: int) -> dict:
+        """Fetch scheduled race metadata. Works before results or qualifying exist."""
+        fallback = FALLBACK_RACE_METADATA.get((season, rnd))
+        try:
+            js = self.client.get_json(f"{season}/{rnd}.json")
+        except Exception as exc:
+            if fallback:
+                return {**fallback, "source": "fallback", "error": str(exc)}
+            raise
+
+        races = js["MRData"]["RaceTable"]["Races"]
+        if not races:
+            return {**fallback, "source": "fallback"} if fallback else {
+                "raceName": None,
+                "circuitId": None,
+                "circuitName": None,
+                "date": None,
+                "source": "empty",
+            }
+
+        race = races[0]
+        circuit = race.get("Circuit") or {}
+        return {
+            "raceName": race.get("raceName"),
+            "circuitId": circuit.get("circuitId"),
+            "circuitName": circuit.get("circuitName"),
+            "date": race.get("date"),
+            "source": "jolpica",
+        }
         
     def _get_last_known_form(self, target_season: int, target_round: int) -> tuple[pd.DataFrame, pd.DataFrame, str]:
         """Extracts the most recent rolling form values for every driver and team strictly BEFORE the target race."""
@@ -90,33 +191,11 @@ class LiveBuilder:
             df["qualiGapMs"] = df["qualiBestMs"] - pole
             df["qualiGapPct"] = df["qualiGapMs"] / pole
             
-        # Grid bucket
-        def get_grid_bucket(grid):
-            if pd.isna(grid) or grid <= 0: return 4
-            if grid <= 3: return 1  
-            if grid <= 10: return 2 
-            if grid <= 20: return 3 
-            return 4
-        df["grid_bucket"] = df["grid"].apply(get_grid_bucket)
+        df["grid_bucket"] = df["grid"].apply(self._grid_bucket)
         
         # Street circuit
-        street_circuits = {
-            "monaco", "marina_bay", "baku", "jeddah", "miami", "las_vegas", 
-            "albert_park", "villeneuve", "sochi", "valencia", "adler", "detroit", "dallas"
-        }
-        df["is_street_circuit"] = df["circuitId"].apply(lambda c: 1 if str(c) in street_circuits else 0)
-        
-        # --- NEW: Chaos & Weather Features ---
-        sc_heavy_circuits = {"monaco", "marina_bay", "baku", "jeddah", "albert_park", "miami", "las_vegas", "zandvoort"}
-        sc_med_circuits = {"interlagos", "montreal", "suzuka", "spa", "imola", "nurburgring"}
-        
-        def get_sc_prob(cid):
-            c = str(cid).lower()
-            if c in sc_heavy_circuits: return 0.85
-            if c in sc_med_circuits: return 0.50
-            return 0.20
-            
-        df["track_sc_prob"] = df["circuitId"].apply(get_sc_prob)
+        df["is_street_circuit"] = df["circuitId"].apply(self._is_street_circuit)
+        df["track_sc_prob"] = df["circuitId"].apply(self._safety_car_probability)
         # Live weather from FastF1 (falls back to 0 for future/unavailable races)
         try:
             wet_flag = get_weather_flag(season, rnd, FastF1FeatureConfig(cache_dir=Path(os.environ.get("F1_CACHE_DIR", "/tmp/f1outcome_cache")) / "fastf1"))
@@ -134,7 +213,108 @@ class LiveBuilder:
         
         return df
 
-    def build_upcoming_race(self, season: int, rnd: int) -> tuple[pd.DataFrame, dict, list, str]:
+    def build_prequalifying_forecast(self, season: int, rnd: int) -> tuple[pd.DataFrame, dict, list, str]:
+        """Build a forecast before qualifying exists.
+
+        This intentionally does not invent qualifying times. It uses the latest
+        completed race roster, rolling form, reliability, neutral grid inputs,
+        and scheduled track context so the model can produce a next-race view
+        before the weekend sessions are available.
+        """
+        metadata = self.fetch_race_metadata(season, rnd)
+        if metadata.get("source") == "empty" and not metadata.get("raceName"):
+            raise ValueError(f"No scheduled race found for {season} Round {rnd}.")
+
+        warnings_list = [
+            "Pre-qualifying forecast: qualifying is not available yet, so grid and qualifying features are neutral.",
+        ]
+        sources = {
+            "ergast": metadata.get("source") == "jolpica",
+            "fastf1": False,
+            "dataset_form": True,
+            "pre_qualifying_forecast": True,
+            "schedule_fallback": metadata.get("source") == "fallback",
+        }
+        if metadata.get("source") == "fallback":
+            warnings_list.append("Race schedule metadata came from the built-in calendar fallback.")
+
+        prior = self.hist_df[
+            (self.hist_df["season"] < season) |
+            ((self.hist_df["season"] == season) & (self.hist_df["round"] < rnd))
+        ].copy()
+        if prior.empty:
+            raise ValueError(f"No historical races found prior to {season} Round {rnd} for forecast.")
+
+        latest_keys = prior[["season", "round"]].drop_duplicates().sort_values(["season", "round"]).iloc[-1]
+        latest_season = int(latest_keys["season"])
+        latest_round = int(latest_keys["round"])
+        latest_race_id = f"{latest_season}_{latest_round}"
+        roster = prior[(prior["season"] == latest_season) & (prior["round"] == latest_round)].copy()
+        roster = roster.drop_duplicates(subset=["driverId"], keep="last")
+        if roster.empty:
+            raise ValueError(f"No provisional roster available from {latest_race_id}.")
+
+        warnings_list.append(f"Provisional entry list copied from latest completed race {latest_race_id}.")
+        if len(roster) < 18:
+            warnings_list.append(f"Provisional roster has only {len(roster)} drivers.")
+
+        neutral_grid = 11
+        circuit_id = metadata.get("circuitId")
+        if circuit_id is None and "circuitId" in roster.columns and not roster["circuitId"].dropna().empty:
+            circuit_id = roster["circuitId"].dropna().iloc[-1]
+
+        base_cols = [
+            "driverId", "givenName", "familyName", "constructorId", "constructorName", "fullName_norm"
+        ]
+        for col in base_cols:
+            if col not in roster.columns:
+                roster[col] = None
+
+        df = roster[base_cols].copy()
+        df["season"] = season
+        df["round"] = rnd
+        df["raceName"] = metadata.get("raceName")
+        df["raceId"] = f"{season}_{rnd}"
+        df["circuitId"] = circuit_id
+        df["grid"] = neutral_grid
+        df["qualiPos"] = neutral_grid
+        df["qualiBestMs"] = np.nan
+        df["qualiGapMs"] = np.nan
+        df["qualiGapPct"] = np.nan
+        df["grid_bucket"] = self._grid_bucket(neutral_grid)
+        df["is_street_circuit"] = self._is_street_circuit(circuit_id)
+        df["track_sc_prob"] = self._safety_car_probability(circuit_id)
+        df["is_wet_race"] = 0
+        df["trackId"] = 0
+
+        missing_name = df["fullName_norm"].isna() | (df["fullName_norm"].astype(str) == "")
+        df.loc[missing_name, "fullName_norm"] = (
+            df.loc[missing_name, "givenName"].fillna("") + df.loc[missing_name, "familyName"].fillna("")
+        ).apply(lambda s: "".join(ch.lower() for ch in str(s) if ch.isalnum()))
+
+        driver_form, team_form, cutoff_id = self._get_last_known_form(season, rnd)
+        df = df.merge(driver_form, on="driverId", how="left")
+        df = df.merge(team_form, on="constructorId", how="left")
+        df = self._add_teammate_delta(df)
+
+        for c in ["q_s1_gap", "q_s2_gap", "q_s3_gap", "fp_longrun_gap"]:
+            df[c] = float("nan")
+
+        df.fillna({
+            "driverFormAvgFinish": 15.0,
+            "driverFormAvgPoints": 0.0,
+            "teamFormAvgFinish": 15.0,
+            "teamFormAvgPoints": 0.0,
+            "driver_dnf_rate": 0.15,
+            "driver_mech_dnf_rate": 0.05,
+            "team_dnf_rate": 0.15,
+            "team_mech_dnf_rate": 0.05,
+            "teammateFormFinishDelta": 0.0,
+        }, inplace=True)
+
+        return df, sources, warnings_list, cutoff_id
+
+    def build_upcoming_race(self, season: int, rnd: int, allow_prequalifying: bool = True) -> tuple[pd.DataFrame, dict, list, str]:
         """Assembles the complete feature matrix for X_pred. Returns (df, sources, warnings, cutoff_id)."""
         warnings_list = []
         sources = {"ergast": False, "fastf1": False, "dataset_form": True}
@@ -155,7 +335,11 @@ class LiveBuilder:
                     warnings_list.append(f"Warning: Huge quali gap detected: {max_gap:.2%} for some drivers.")
                     
         except Exception as e:
-            raise ValueError(f"Ergast Qualifying required to predict. Failed: {e}")
+            if not allow_prequalifying:
+                raise ValueError(f"Ergast Qualifying required to predict. Failed: {e}")
+            df, sources, warnings_list, cutoff_id = self.build_prequalifying_forecast(season, rnd)
+            warnings_list.insert(0, f"Qualifying fetch failed; using pre-qualifying forecast. Original error: {e}")
+            return df, sources, warnings_list, cutoff_id
         
         # 2. Get historical rolling form
         driver_form, team_form, cutoff_id = self._get_last_known_form(season, rnd)
@@ -164,19 +348,7 @@ class LiveBuilder:
         df = df.merge(team_form, on="constructorId", how="left")
         
         # 3. Teammate Delta
-        def calc_teammate_delta(group):
-            tdeltas = []
-            for _, row in group.iterrows():
-                teammates = group[(group["driverId"] != row["driverId"])]
-                if not teammates.empty:
-                    teammate_form = teammates["driverFormAvgFinish"].mean()
-                    tdeltas.append(row["driverFormAvgFinish"] - teammate_form)
-                else:
-                    tdeltas.append(0.0)
-            group["teammateFormFinishDelta"] = tdeltas
-            return group
-            
-        df = df.groupby(["season", "round", "constructorId"], group_keys=False).apply(calc_teammate_delta)
+        df = self._add_teammate_delta(df)
         
         # 4. Fetch Live FastF1
         cfg = FastF1FeatureConfig(cache_dir=Path(os.environ.get("F1_CACHE_DIR", "/tmp/f1outcome_cache")) / "fastf1")
