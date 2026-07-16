@@ -47,7 +47,7 @@ MODE: str = "subtract_cap"  # default combine rule: "subtract" or "subtract_cap"
 
 app = FastAPI(title="F1 Outcome Lab")
 
-PUBLIC_DIR = Path("frontend/public")
+PUBLIC_DIR = Path(__file__).resolve().parents[3] / "frontend" / "public"
 if PUBLIC_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(PUBLIC_DIR)), name="assets")
 
