@@ -373,7 +373,7 @@ class BacktestResponse(BaseModel):
 
 
 @app.get("/predict/backtest", response_model=BacktestResponse)
-def backtest(season: int = Query(..., ge=2019, le=2024)):
+def backtest(season: int = Query(..., ge=2019, le=2100)):
     from scipy.stats import kendalltau
 
     df = get_dataset()

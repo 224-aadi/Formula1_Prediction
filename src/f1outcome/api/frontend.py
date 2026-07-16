@@ -89,7 +89,34 @@ PRODUCT_HTML = """<!doctype html>
     h2 { margin: 10px 0 10px; font-size: clamp(36px, 7vw, 78px); line-height: .88; letter-spacing: 0; }
     .hero-copy p { margin: 0; max-width: 570px; color: var(--muted); font-size: 15px; }
     .car-wrap { position: relative; z-index: 1; margin-top: 24px; min-height: 112px; }
-    .car-wrap img { width: min(520px, 92%); max-height: 190px; object-fit: contain; filter: drop-shadow(0 24px 35px rgba(0,0,0,.55)); }
+    .car-art {
+      position: relative; width: min(520px, 92%); height: 126px; margin-top: 10px;
+      filter: drop-shadow(0 24px 35px rgba(0,0,0,.55));
+    }
+    .car-art:before {
+      content: ""; position: absolute; left: 5%; right: 4%; top: 40px; height: 38px;
+      background: linear-gradient(90deg, #7a0704, var(--red) 38%, #ff5b55 64%, #73110f);
+      clip-path: polygon(0 65%, 12% 25%, 48% 8%, 68% 28%, 88% 32%, 100% 68%, 84% 86%, 12% 86%);
+      border-radius: 18px;
+    }
+    .car-art:after {
+      content: ""; position: absolute; left: 37%; top: 18px; width: 118px; height: 44px;
+      background: linear-gradient(135deg, rgba(33,212,196,.9), rgba(91,140,255,.35));
+      clip-path: polygon(0 100%, 28% 12%, 76% 20%, 100% 100%);
+      border: 1px solid rgba(255,255,255,.18);
+    }
+    .wheel {
+      position: absolute; top: 68px; width: 54px; height: 54px; border-radius: 50%;
+      background: radial-gradient(circle, #272b36 0 24%, #08090d 25% 55%, #373b47 56% 65%, #090a0f 66%);
+      border: 3px solid #1e222d;
+    }
+    .wheel.front { right: 12%; }
+    .wheel.back { left: 17%; }
+    .wing {
+      position: absolute; top: 50px; height: 15px; background: #f7f7f8; border-radius: 2px;
+    }
+    .wing.front { right: 0; width: 74px; transform: skewX(-18deg); }
+    .wing.back { left: 0; width: 76px; transform: skewX(18deg); }
     .speedline { position: absolute; left: 0; right: 12%; height: 2px; background: linear-gradient(90deg, transparent, rgba(225,6,0,.85), transparent); opacity: .55; }
     .speedline.a { bottom: 36px; }
     .speedline.b { bottom: 62px; right: 28%; background: linear-gradient(90deg, transparent, rgba(33,212,196,.8), transparent); }
@@ -189,7 +216,12 @@ PRODUCT_HTML = """<!doctype html>
           <p>Pick a season and race, then run the model to rank the field with pace, form, and non-finish risk blended into one race-order view.</p>
         </div>
         <div class="car-wrap" aria-hidden="true">
-          <img src="/assets/f1-car.png" alt="" onerror="this.style.display='none'" />
+          <div class="car-art">
+            <span class="wing back"></span>
+            <span class="wing front"></span>
+            <span class="wheel back"></span>
+            <span class="wheel front"></span>
+          </div>
           <div class="speedline a"></div>
           <div class="speedline b"></div>
         </div>

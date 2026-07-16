@@ -108,6 +108,7 @@ class DatasetBuilder:
                     pbar.set_postfix_str("results=empty")
                     continue
 
+                qua = self.fetch_round_qualifying(season, rnd)
                 df = res.merge(qua, on=["season", "round", "driverId"], how="left")
 
                 # --- NEW: Chaos & Weather Features ---
@@ -364,31 +365,9 @@ class DatasetBuilder:
 
         # Target relevance for ranking (winner highest)
         # If finishPosition is 1..20, convert to relevance: 21 - position
-        data["relevance"] = data["finishPosition"].apply(lambda p: (21 - p) if isinstance(p, int) else None)
+        data["relevance"] = data["finishPosition"].apply(
+            lambda p: max(0, 21 - int(p)) if pd.notna(p) else None
+        )
         data["fullName_norm"] = (data["givenName"].fillna("") + data["familyName"].fillna("")).apply(lambda s: "".join(ch.lower() for ch in str(s) if ch.isalnum()))
-
-        if use_fastf1:
-            cfg = FastF1FeatureConfig(cache_dir=fastf1_cache_dir or Path("data/raw/fastf1_cache"))
-
-            # For each (season, round, raceName) get features and merge
-            feat_rows = []
-            for (season, rnd), g in data.groupby(["season", "round"]):
-                race_name = g["raceName"].iloc[0]
-                # FastF1 works best 2018+; skip older automatically
-                if int(season) < 2018:
-                    continue
-                try:
-                    f = fastf1_driver_features(int(season), int(rnd), cfg)
-                    if not f.empty:
-                        f["season"] = int(season)
-                        f["round"] = int(rnd)
-                        feat_rows.append(f)
-                except Exception:
-                    # Don't fail dataset build because one event didn't load
-                    continue
-
-            if feat_rows:
-                feats = pd.concat(feat_rows, ignore_index=True)
-                data = data.merge(feats, on=["season", "round", "fullName_norm"], how="left")
 
         return data

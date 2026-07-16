@@ -1,13 +1,13 @@
-name: F1 Data Automation
+name: Refresh Production F1 Data
 
 on:
   schedule:
-    # Run every Monday at 12:00 UTC (noon) after a race weekend
+    # Run every Monday after a race weekend.
     - cron: '0 12 * * 1'
-  workflow_dispatch: # Allow manual trigger from GitHub UI
+  workflow_dispatch:
 
 jobs:
-  update-dataset:
+  refresh-production-data:
     runs-on: ubuntu-latest
 
     permissions:
@@ -28,26 +28,19 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e .
 
-    - name: Build Dataset & Retrain Models (2025 & 2026)
+    - name: Rebuild production dataset and retrain models
       run: |
-        echo "Running build_dataset.py for 2025 and 2026..."
-        # If FastF1 raises a rate limit or Jolpica is down, the script will fail here and notify the repo owner
-        python scripts/build_dataset.py --seasons 2025 2026
+        python scripts/refresh_production.py --start-season 2019
 
     - name: Commit and Push Changes
       run: |
         git config --global user.name 'f1-outcome-bot'
         git config --global user.email 'f1-outcome-bot@users.noreply.github.com'
-        
-        # Add updated datasets and retrained models
-        git add data/processed/f1_historical_processed.parquet
+        git add data/processed/final_hybrid_dataset.parquet
         git add artifacts/final/
-        
-        # Check if there are actual changes
         if git diff --staged --quiet; then
           echo "No new race data found to commit."
         else
-          git commit -m "chore(data): Automated dataset & model update after race weekend"
-          # Push strictly back to the branch that triggered the action
+          git commit -m "chore(data): refresh production race data and models"
           git push origin HEAD
         fi

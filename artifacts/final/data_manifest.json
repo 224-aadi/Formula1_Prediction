@@ -1,12 +1,91 @@
-﻿[
+{
+  "generated_at": "2026-07-16T08:08:43.772014+00:00",
+  "dataset": "data/processed/final_hybrid_dataset.parquet",
+  "rows": 3236,
+  "seasons": [
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024,
+    2025,
+    2026
+  ],
+  "latest_season": 2026,
+  "latest_round": 9,
+  "races_by_season": [
     {
-        "Algorithm":  "SHA256",
-        "Hash":  "A086416FD1594C59BA638B709CEF7C476262067E154DF87ADB5C99B33FA01B3A",
-        "Path":  "C:\\Users\\aadig\\OneDrive\\Documents\\GitHub\\Formula1_Prediction\\data\\processed\\dataset_seasons_2019_2020_2021_2022_2023_2024.parquet"
+      "season": 2019,
+      "min": 1,
+      "max": 21,
+      "count": 21
     },
     {
-        "Algorithm":  "SHA256",
-        "Hash":  "31C35AD4A462D2BB58A93ACAF06719BA68990F32AF2F6106E76B340813BE9483",
-        "Path":  "C:\\Users\\aadig\\OneDrive\\Documents\\GitHub\\Formula1_Prediction\\data\\processed\\dataset_seasons_2019_2020_2021_2022_2023_2024_fastf1.parquet"
+      "season": 2020,
+      "min": 1,
+      "max": 17,
+      "count": 17
+    },
+    {
+      "season": 2021,
+      "min": 1,
+      "max": 22,
+      "count": 22
+    },
+    {
+      "season": 2022,
+      "min": 1,
+      "max": 22,
+      "count": 22
+    },
+    {
+      "season": 2023,
+      "min": 1,
+      "max": 22,
+      "count": 22
+    },
+    {
+      "season": 2024,
+      "min": 1,
+      "max": 24,
+      "count": 24
+    },
+    {
+      "season": 2025,
+      "min": 1,
+      "max": 24,
+      "count": 24
+    },
+    {
+      "season": 2026,
+      "min": 1,
+      "max": 9,
+      "count": 9
     }
-]
+  ],
+  "features": [
+    "grid",
+    "qualiPos",
+    "qualiGapMs",
+    "qualiGapPct",
+    "driverFormAvgFinish",
+    "teamFormAvgFinish",
+    "driverFormAvgPoints",
+    "teamFormAvgPoints",
+    "teammateFormFinishDelta",
+    "grid_bucket",
+    "q_s1_gap",
+    "q_s2_gap",
+    "q_s3_gap",
+    "fp_longrun_gap",
+    "driver_dnf_rate",
+    "driver_mech_dnf_rate",
+    "team_dnf_rate",
+    "team_mech_dnf_rate",
+    "is_street_circuit",
+    "track_sc_prob",
+    "is_wet_race"
+  ],
+  "use_fastf1": false
+}

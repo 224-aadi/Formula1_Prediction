@@ -5,11 +5,12 @@ import requests
 
 # Jolpica rate limits: 4 req/sec, 500 req/hour :contentReference[oaicite:3]{index=3}
 class JolpicaClient:
-    def __init__(self, base_url: str, cache_dir: Path, min_interval_s: float = 0.30):
+    def __init__(self, base_url: str, cache_dir: Path, min_interval_s: float = 0.30, max_retries: int = 5):
         self.base_url = base_url.rstrip("/")
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.min_interval_s = min_interval_s
+        self.max_retries = max_retries
         self._last_call = 0.0
         self.session = requests.Session()
 
@@ -31,8 +32,21 @@ class JolpicaClient:
 
         self._sleep_if_needed()
         url = f"{self.base_url}/{path.lstrip('/')}"
-        r = self.session.get(url, params=params, timeout=30)
-        self._last_call = time.time()
+        for attempt in range(self.max_retries + 1):
+            r = self.session.get(url, params=params, timeout=30)
+            self._last_call = time.time()
+            if r.status_code != 429:
+                break
+
+            retry_after = r.headers.get("retry-after")
+            if retry_after:
+                try:
+                    sleep_for = float(retry_after)
+                except ValueError:
+                    sleep_for = self.min_interval_s * (attempt + 2)
+            else:
+                sleep_for = max(2.0, self.min_interval_s * (2 ** attempt))
+            time.sleep(sleep_for)
 
         # If you hit 429s you’re over the rate limit :contentReference[oaicite:4]{index=4}
         r.raise_for_status()
