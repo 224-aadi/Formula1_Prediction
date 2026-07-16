@@ -132,6 +132,7 @@ dmypy.json
 Thumbs.db
 
 # Project specific
+.npm-cache/
 data/raw/*
 data/processed/*
 artifacts/*
@@ -157,4 +158,3 @@ scripts/prepare_api_data.py
 
 # Ignore test output text files
 *.txt
-

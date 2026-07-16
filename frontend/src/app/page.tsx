@@ -20,9 +20,21 @@ type PredictionResponse = {
   alpha: number;
   p_dnf_cap: number;
   mode: string;
-  sources: { ergast: boolean; fastf1: boolean; dataset_form: boolean };
-  warnings: string[];
-  form_cutoff_raceId: string;
+  sources?: { ergast: boolean; fastf1: boolean; dataset_form: boolean };
+  warnings?: string[];
+  form_cutoff_raceId?: string;
+};
+type RaceInfo = {
+  season: number;
+  round: number;
+  raceId: string;
+  raceName: string | null;
+};
+type UiRace = RaceInfo & {
+  name: string;
+  flag: string;
+  circuit: string;
+  date: string;
 };
 type RaceAccuracy = {
   season: number;
@@ -41,36 +53,33 @@ type BacktestResponse = {
   avg_kendall_tau: number;
 };
 
-// The API runs on port 8000 by default in the backend
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://f1-predictor-api-qpym.onrender.com";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 /* ═══════════════ RACE CALENDAR ═══════════════ */
 const CALENDAR: Record<number, { round: number; name: string; flag: string; circuit: string; date: string }[]> = {
   2026: [
     { round: 1, name: "Australian Grand Prix", flag: "🇦🇺", circuit: "Albert Park, Melbourne", date: "Mar 8" },
-    { round: 2, name: "Chinese Grand Prix", flag: "🇨🇳", circuit: "Shanghai International", date: "Mar 22" },
-    { round: 3, name: "Japanese Grand Prix", flag: "🇯🇵", circuit: "Suzuka", date: "Apr 5" },
-    { round: 4, name: "Bahrain Grand Prix", flag: "🇧🇭", circuit: "Sakhir", date: "Apr 12" },
-    { round: 5, name: "Saudi Arabian Grand Prix", flag: "🇸🇦", circuit: "Jeddah Corniche", date: "Apr 19" },
-    { round: 6, name: "Miami Grand Prix", flag: "🇺🇸", circuit: "Miami International", date: "May 3" },
-    { round: 7, name: "Emilia Romagna Grand Prix", flag: "🇮🇹", circuit: "Imola", date: "May 17" },
-    { round: 8, name: "Monaco Grand Prix", flag: "🇲🇨", circuit: "Circuit de Monaco", date: "May 24" },
-    { round: 9, name: "Spanish Grand Prix", flag: "🇪🇸", circuit: "Circuit de Barcelona", date: "Jun 1" },
-    { round: 10, name: "Canadian Grand Prix", flag: "🇨🇦", circuit: "Circuit Gilles Villeneuve", date: "Jun 15" },
-    { round: 11, name: "Austrian Grand Prix", flag: "🇦🇹", circuit: "Red Bull Ring", date: "Jun 29" },
-    { round: 12, name: "British Grand Prix", flag: "🇬🇧", circuit: "Silverstone", date: "Jul 6" },
-    { round: 13, name: "Belgian Grand Prix", flag: "🇧🇪", circuit: "Spa-Francorchamps", date: "Jul 27" },
-    { round: 14, name: "Hungarian Grand Prix", flag: "🇭🇺", circuit: "Hungaroring", date: "Aug 3" },
-    { round: 15, name: "Dutch Grand Prix", flag: "🇳🇱", circuit: "Zandvoort", date: "Aug 31" },
-    { round: 16, name: "Italian Grand Prix", flag: "🇮🇹", circuit: "Monza", date: "Sep 7" },
-    { round: 17, name: "Azerbaijan Grand Prix", flag: "🇦🇿", circuit: "Baku City", date: "Sep 21" },
-    { round: 18, name: "Singapore Grand Prix", flag: "🇸🇬", circuit: "Marina Bay", date: "Oct 5" },
-    { round: 19, name: "United States Grand Prix", flag: "🇺🇸", circuit: "COTA, Austin", date: "Oct 19" },
-    { round: 20, name: "Mexico City Grand Prix", flag: "🇲🇽", circuit: "Hermanos Rodriguez", date: "Oct 26" },
-    { round: 21, name: "Brazilian Grand Prix", flag: "🇧🇷", circuit: "Interlagos", date: "Nov 9" },
-    { round: 22, name: "Las Vegas Grand Prix", flag: "🇺🇸", circuit: "Las Vegas Strip", date: "Nov 22" },
-    { round: 23, name: "Qatar Grand Prix", flag: "🇶🇦", circuit: "Losail International", date: "Nov 30" },
-    { round: 24, name: "Abu Dhabi Grand Prix", flag: "🇦🇪", circuit: "Yas Marina", date: "Dec 7" },
+    { round: 2, name: "Chinese Grand Prix", flag: "🇨🇳", circuit: "Shanghai International", date: "Mar 15" },
+    { round: 3, name: "Japanese Grand Prix", flag: "🇯🇵", circuit: "Suzuka", date: "Mar 29" },
+    { round: 4, name: "Miami Grand Prix", flag: "🇺🇸", circuit: "Miami International", date: "May 3" },
+    { round: 5, name: "Canadian Grand Prix", flag: "🇨🇦", circuit: "Circuit Gilles Villeneuve", date: "May 24" },
+    { round: 6, name: "Monaco Grand Prix", flag: "🇲🇨", circuit: "Circuit de Monaco", date: "Jun 7" },
+    { round: 7, name: "Barcelona Grand Prix", flag: "🇪🇸", circuit: "Circuit de Barcelona-Catalunya", date: "Jun 14" },
+    { round: 8, name: "Austrian Grand Prix", flag: "🇦🇹", circuit: "Red Bull Ring", date: "Jun 28" },
+    { round: 9, name: "British Grand Prix", flag: "🇬🇧", circuit: "Silverstone", date: "Jul 5" },
+    { round: 10, name: "Belgian Grand Prix", flag: "🇧🇪", circuit: "Spa-Francorchamps", date: "Jul 19" },
+    { round: 11, name: "Hungarian Grand Prix", flag: "🇭🇺", circuit: "Hungaroring", date: "Jul 26" },
+    { round: 12, name: "Dutch Grand Prix", flag: "🇳🇱", circuit: "Zandvoort", date: "Aug 23" },
+    { round: 13, name: "Italian Grand Prix", flag: "🇮🇹", circuit: "Monza", date: "Sep 6" },
+    { round: 14, name: "Spanish Grand Prix", flag: "🇪🇸", circuit: "Madring, Madrid", date: "Sep 13" },
+    { round: 15, name: "Azerbaijan Grand Prix", flag: "🇦🇿", circuit: "Baku City", date: "Sep 26" },
+    { round: 16, name: "Singapore Grand Prix", flag: "🇸🇬", circuit: "Marina Bay", date: "Oct 11" },
+    { round: 17, name: "United States Grand Prix", flag: "🇺🇸", circuit: "COTA, Austin", date: "Oct 25" },
+    { round: 18, name: "Mexico City Grand Prix", flag: "🇲🇽", circuit: "Hermanos Rodriguez", date: "Nov 1" },
+    { round: 19, name: "São Paulo Grand Prix", flag: "🇧🇷", circuit: "Interlagos", date: "Nov 8" },
+    { round: 20, name: "Las Vegas Grand Prix", flag: "🇺🇸", circuit: "Las Vegas Strip", date: "Nov 21" },
+    { round: 21, name: "Qatar Grand Prix", flag: "🇶🇦", circuit: "Lusail International", date: "Nov 29" },
+    { round: 22, name: "Abu Dhabi Grand Prix", flag: "🇦🇪", circuit: "Yas Marina", date: "Dec 6" },
   ],
   2025: [
     { round: 1, name: "Australian Grand Prix", flag: "🇦🇺", circuit: "Albert Park", date: "Mar 16" },
@@ -201,6 +210,43 @@ const td = (id: string, yr: number): DriverInfo => {
 };
 const fmt = (id: string) => id.split("_").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
 
+const raceDetails = (race: RaceInfo): UiRace => {
+  const name = race.raceName || race.raceId;
+  const fallback = CALENDAR[race.season]?.find((r) => r.name === name || r.round === race.round);
+  const lower = name.toLowerCase();
+  const flag =
+    lower.includes("australian") ? "🇦🇺" :
+    lower.includes("chinese") ? "🇨🇳" :
+    lower.includes("japanese") ? "🇯🇵" :
+    lower.includes("bahrain") ? "🇧🇭" :
+    lower.includes("saudi") ? "🇸🇦" :
+    lower.includes("miami") || lower.includes("united states") || lower.includes("las vegas") ? "🇺🇸" :
+    lower.includes("canadian") ? "🇨🇦" :
+    lower.includes("monaco") ? "🇲🇨" :
+    lower.includes("spanish") || lower.includes("barcelona") ? "🇪🇸" :
+    lower.includes("austrian") ? "🇦🇹" :
+    lower.includes("british") ? "🇬🇧" :
+    lower.includes("belgian") ? "🇧🇪" :
+    lower.includes("hungarian") ? "🇭🇺" :
+    lower.includes("dutch") ? "🇳🇱" :
+    lower.includes("italian") ? "🇮🇹" :
+    lower.includes("azerbaijan") ? "🇦🇿" :
+    lower.includes("singapore") ? "🇸🇬" :
+    lower.includes("mexico") ? "🇲🇽" :
+    lower.includes("brazil") || lower.includes("são paulo") ? "🇧🇷" :
+    lower.includes("qatar") ? "🇶🇦" :
+    lower.includes("abu dhabi") ? "🇦🇪" :
+    fallback?.flag || "🏁";
+
+  return {
+    ...race,
+    name,
+    flag,
+    circuit: fallback?.circuit || "Grand Prix weekend",
+    date: fallback?.date || "Completed",
+  };
+};
+
 /* ═══════════════ COMPONENTS ═══════════════ */
 
 /* Tooltip wrapper */
@@ -249,9 +295,12 @@ function Source({ label, on }: { label: string; on: boolean }) {
 export default function Home() {
   const [data, setData] = useState<PredictionResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingRaces, setLoadingRaces] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [season, setSeason] = useState(2026);
   const [round, setRound] = useState(1);
+  const [availableSeasons, setAvailableSeasons] = useState<number[]>([2026, 2025, 2024]);
+  const [races, setRaces] = useState<UiRace[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [tab, setTab] = useState<"grid" | "h2h" | "calendar" | "accuracy">("grid");
   const [cmp, setCmp] = useState<string[]>([]);
@@ -260,8 +309,8 @@ export default function Home() {
   const [backtest, setBacktest] = useState<BacktestResponse | null>(null);
   const [btLoading, setBtLoading] = useState(false);
 
-  const races = CALENDAR[season] || [];
   const race = races.find((r) => r.round === round);
+  const latestRound = races.length ? Math.max(...races.map((r) => r.round)) : round;
 
   // Close calendar on outside click
   useEffect(() => {
@@ -272,12 +321,67 @@ export default function Home() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const predict = useCallback(async (s: number, r: number) => {
+  useEffect(() => {
+    let cancelled = false;
+    async function loadSeasons() {
+      try {
+        const res = await fetch(`${API_BASE}/races`);
+        if (!res.ok) throw new Error(`Failed to load seasons (${res.status})`);
+        const all: RaceInfo[] = await res.json();
+        if (cancelled) return;
+        const years = Array.from(new Set(all.map((r) => r.season))).sort((a, b) => b - a);
+        if (years.length) {
+          setAvailableSeasons(years);
+          if (!years.includes(season)) setSeason(years[0]);
+        }
+      } catch (e: any) {
+        if (!cancelled) setError(e.message || "Failed to load race data");
+      }
+    }
+    loadSeasons();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadRaces() {
+      setLoadingRaces(true);
+      setError(null);
+      try {
+        const res = await fetch(`${API_BASE}/races?season=${season}`);
+        if (!res.ok) throw new Error(`Failed to load ${season} races (${res.status})`);
+        const loaded: RaceInfo[] = await res.json();
+        if (cancelled) return;
+        const decorated = loaded.map(raceDetails);
+        setRaces(decorated);
+        setRound(decorated.length ? decorated[decorated.length - 1].round : 1);
+        setData(null);
+        setExpanded(null);
+        setCmp([]);
+        setBacktest(null);
+      } catch (e: any) {
+        if (!cancelled) setError(e.message || "Failed to load races");
+      } finally {
+        if (!cancelled) setLoadingRaces(false);
+      }
+    }
+    loadRaces();
+    return () => { cancelled = true; };
+  }, [season]);
+
+  const predict = useCallback(async (s: number, r: number, kind: "dataset" | "live" = "dataset") => {
     setLoading(true); setError(null); setExpanded(null);
     try {
-      const res = await fetch(`${API_BASE}/predict/live?season=${s}&round=${r}`);
+      const endpoint = kind === "live" ? "live" : "from_parquet";
+      const res = await fetch(`${API_BASE}/predict/${endpoint}?season=${s}&round=${r}`);
       if (!res.ok) { const e = await res.json().catch(() => ({ detail: "API Error" })); throw new Error(e.detail || `HTTP ${res.status}`); }
-      setData(await res.json());
+      const payload: PredictionResponse = await res.json();
+      setData({
+        ...payload,
+        sources: payload.sources || { ergast: kind === "live", fastf1: false, dataset_form: true },
+        warnings: payload.warnings || [],
+        form_cutoff_raceId: payload.form_cutoff_raceId || "production dataset",
+      });
     } catch (e: any) { setError(e.message || "Connection failed"); }
     finally { setLoading(false); }
   }, []);
@@ -305,9 +409,9 @@ export default function Home() {
           </div>
           {data && (
             <div className="hidden md:flex items-center gap-1.5">
-              <Source label="Ergast" on={data.sources.ergast} />
-              <Source label="FastF1 Pace" on={data.sources.fastf1} />
-              <Source label="Form Data" on={data.sources.dataset_form} />
+              <Source label="Ergast" on={data.sources?.ergast ?? false} />
+              <Source label="FastF1 Pace" on={data.sources?.fastf1 ?? false} />
+              <Source label="Form Data" on={data.sources?.dataset_form ?? true} />
             </div>
           )}
         </div>
@@ -321,7 +425,7 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row gap-3 items-stretch">
             {/* Season Tabs */}
             <div className="flex gap-1 bg-zinc-900/60 p-1 rounded-xl border border-white/5">
-              {[2024, 2025, 2026].map((y) => (
+              {availableSeasons.map((y) => (
                 <button key={y} onClick={() => { setSeason(y); setRound(1); setData(null); }}
                   className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${season === y ? "bg-red-600 text-white shadow-lg shadow-red-900/30" : "text-zinc-500 hover:text-white hover:bg-zinc-800"}`}>
                   {y}
@@ -367,12 +471,16 @@ export default function Home() {
             </div>
 
             {/* Predict Button */}
-            <button onClick={() => predict(season, round)} disabled={loading}
+            <button onClick={() => predict(season, round, "dataset")} disabled={loading || loadingRaces}
               className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-black text-sm uppercase tracking-wider transition-all disabled:opacity-40 animate-pulse-glow flex-shrink-0 flex items-center gap-2">
               {loading ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Computing</> : <>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                 Predict
               </>}
+            </button>
+            <button onClick={() => predict(season, latestRound + 1, "live")} disabled={loading || loadingRaces}
+              className="px-5 py-2.5 rounded-xl border border-white/10 bg-zinc-900/70 hover:bg-zinc-800 active:scale-95 text-zinc-200 font-black text-sm uppercase tracking-wider transition-all disabled:opacity-40 flex-shrink-0">
+              Next Live
             </button>
           </div>
         </section>
@@ -461,7 +569,7 @@ export default function Home() {
             <p className="text-sm text-red-300/70">{error}</p>
             <div className="mt-3 p-2 rounded-lg bg-zinc-900/60 border border-white/5">
               <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Target API</p>
-              <code className="text-[10px] text-zinc-400 break-all">{API_BASE}</code>
+              <code className="text-[10px] text-zinc-400 break-all">{API_BASE || "same-origin Vercel API"}</code>
             </div>
             {API_BASE.includes("localhost") && (
               <p className="text-[10px] text-zinc-600 mt-2">Make sure your local server is running: <code className="bg-zinc-800 px-1 py-0.5 rounded">python -m uvicorn f1outcome.api.app:app</code></p>
@@ -473,10 +581,10 @@ export default function Home() {
         {data && !loading && (
           <div className="space-y-6">
             {/* Warnings */}
-            {data.warnings.length > 0 && (
+            {(data.warnings?.length ?? 0) > 0 && (
               <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-900/30 text-amber-400 text-xs flex items-center gap-2">
                 <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M12 3l9.66 16.5H2.34L12 3z" /></svg>
-                {data.warnings.join(" · ")}
+                {data.warnings?.join(" · ")}
               </div>
             )}
 
@@ -488,7 +596,7 @@ export default function Home() {
                     setTab(key);
                     if (key === "accuracy" && !backtest && !btLoading) {
                       setBtLoading(true);
-                      fetch(`${API_BASE}/predict/backtest?season=2024`)
+                      fetch(`${API_BASE}/predict/backtest?season=${season}`)
                         .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
                         .then(d => { if (d && d.races) setBacktest(d); else setBacktest(null); })
                         .catch(() => setBacktest(null))
@@ -790,22 +898,12 @@ export default function Home() {
             {/* ───── CALENDAR TAB ───── */}
             {tab === "calendar" && (
               <div className="space-y-4 animate-fade-in-up">
-                <p className="text-xs text-zinc-500">Full {season} season schedule. Click ⚡ to instantly predict any race.</p>
+                <p className="text-xs text-zinc-500">Completed {season} races from the production dataset. Use Next Live for the upcoming race once qualifying is posted.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {races.map((r) => {
-                    const raceDate = new Date(`${r.date} ${season}`);
-                    const now = new Date();
-                    const diffMs = raceDate.getTime() - now.getTime();
-                    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-                    const isPast = diffDays < 0;
-                    const isNext = !isPast && diffDays <= 14;
                     return (
                       <div key={r.round}
-                        className={`p-4 rounded-xl border transition-all hover:scale-[1.01] ${
-                          isNext ? "border-red-600/50 bg-red-950/20 shadow-lg shadow-red-900/10" :
-                          isPast ? "border-white/5 bg-zinc-900/20 opacity-70" :
-                          "border-white/5 bg-zinc-900/40"
-                        }`}>
+                        className="p-4 rounded-xl border border-white/5 bg-zinc-900/40 transition-all hover:scale-[1.01]">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-2">
                             <span className="text-2xl">{r.flag}</span>
@@ -820,14 +918,10 @@ export default function Home() {
                           </div>
                         </div>
                         <div className="flex items-center justify-between">
-                          <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            isPast ? "bg-zinc-800 text-zinc-500" :
-                            isNext ? "bg-red-600/20 text-red-400 animate-pulse" :
-                            "bg-emerald-950/50 text-emerald-400"
-                          }`}>
-                            {isPast ? "COMPLETED" : isNext ? `${diffDays}d AWAY — NEXT UP` : `${diffDays} days`}
+                          <div className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950/50 text-emerald-400">
+                            COMPLETED DATA
                           </div>
-                          <button onClick={() => { setRound(r.round); setTab("grid"); predict(season, r.round); }}
+                          <button onClick={() => { setRound(r.round); setTab("grid"); predict(season, r.round, "dataset"); }}
                             className="flex items-center gap-1 px-3 py-1 rounded-lg bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white text-[10px] font-bold transition-all">
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                             Predict
@@ -846,7 +940,7 @@ export default function Home() {
                 {btLoading && (
                   <div className="flex items-center justify-center py-12">
                     <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-                    <span className="ml-3 text-sm text-zinc-400">Running backtest on 2024 season...</span>
+                    <span className="ml-3 text-sm text-zinc-400">Running backtest on {season} season...</span>
                   </div>
                 )}
                 {!btLoading && !backtest && (
@@ -855,11 +949,11 @@ export default function Home() {
                     <h3 className="text-lg font-bold text-white mb-2">Backtest Unavailable</h3>
                     <p className="text-sm text-zinc-500 mb-4 max-w-md mx-auto">
                       The backend API needs the <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400 text-xs">/predict/backtest</code> endpoint.
-                      If you just deployed, wait a few minutes for Render to rebuild.
+                      If you just deployed, wait a few minutes for Vercel to rebuild.
                     </p>
                     <button onClick={() => {
                       setBtLoading(true);
-                      fetch(`${API_BASE}/predict/backtest?season=2024`)
+                      fetch(`${API_BASE}/predict/backtest?season=${season}`)
                         .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
                         .then(d => { if (d && d.races) setBacktest(d); else setBacktest(null); })
                         .catch(() => setBacktest(null))
@@ -1049,7 +1143,7 @@ export default function Home() {
               </div>
               <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-900/60 border border-white/5 hover:border-orange-900/50 transition-colors">
                 <div className="w-2 h-2 rounded-full bg-orange-500" />
-                <span className="text-zinc-400">2019-2024 Training Data</span>
+                <span className="text-zinc-400">2019-2026 Training Data</span>
               </div>
               <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-900/60 border border-white/5 hover:border-emerald-900/50 transition-colors">
                 <div className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -1072,7 +1166,7 @@ export default function Home() {
       <footer className="border-t border-white/5 mt-16">
         <div className="max-w-7xl mx-auto px-6 py-5 flex flex-col sm:flex-row items-center justify-between text-[10px] text-zinc-700 gap-2">
           <span>F1 Oracle Lab &middot; Powered by LightGBM + FastF1 Telemetry + Isotonic Calibration</span>
-          <Tip text="The model was trained on 2019-2024 F1 data with strict time-series splits to prevent data leakage.">
+          <Tip text="The model was trained on refreshed 2019-2026 F1 data with strict time-series features to reduce leakage.">
             <span className="underline decoration-dotted cursor-help">How does this work?</span>
           </Tip>
         </div>
