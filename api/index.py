@@ -6,7 +6,9 @@ import site
 
 os.environ.setdefault("MPLCONFIGDIR", "/tmp")
 
-for site_packages in site.getsitepackages():
+for site_packages in [*site.getsitepackages(), *sys.path]:
+    if not site_packages:
+        continue
     for libgomp_path in glob.glob(os.path.join(site_packages, "*.libs", "libgomp*.so*")):
         ctypes.CDLL(libgomp_path, mode=ctypes.RTLD_GLOBAL)
         break
