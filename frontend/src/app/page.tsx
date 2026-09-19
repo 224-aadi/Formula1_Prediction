@@ -61,6 +61,10 @@ type BacktestResponse = {
   avg_kendall_tau: number;
 };
 
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 /* ═══════════════ RACE CALENDAR ═══════════════ */
@@ -349,10 +353,10 @@ export default function Home() {
         const years = Array.from(new Set(all.map((r) => r.season))).sort((a, b) => b - a);
         if (years.length) {
           setAvailableSeasons(years);
-          if (!years.includes(season)) setSeason(years[0]);
+          setSeason((current) => years.includes(current) ? current : years[0]);
         }
-      } catch (e: any) {
-        if (!cancelled) setError(e.message || "Failed to load race data");
+      } catch (error: unknown) {
+        if (!cancelled) setError(errorMessage(error, "Failed to load race data"));
       }
     }
     loadSeasons();
@@ -376,8 +380,8 @@ export default function Home() {
         setExpanded(null);
         setCmp([]);
         setBacktest(null);
-      } catch (e: any) {
-        if (!cancelled) setError(e.message || "Failed to load races");
+      } catch (error: unknown) {
+        if (!cancelled) setError(errorMessage(error, "Failed to load races"));
       } finally {
         if (!cancelled) setLoadingRaces(false);
       }
@@ -401,7 +405,7 @@ export default function Home() {
         warnings: payload.warnings || [],
         form_cutoff_raceId: payload.form_cutoff_raceId || "production dataset",
       });
-    } catch (e: any) { setError(e.message || "Connection failed"); }
+    } catch (error: unknown) { setError(errorMessage(error, "Connection failed")); }
     finally { setLoading(false); }
   }, []);
 

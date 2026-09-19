@@ -8,6 +8,13 @@ import sys
 
 
 def prepare_lightgbm_runtime() -> None:
+    # The vendored OpenMP runtime is an ELF shared object for Linux/Vercel.
+    # Attempting to load it on Windows opens a native "Bad Image" dialog before
+    # ctypes can raise OSError, so leave non-Linux platforms to LightGBM's own
+    # platform-specific wheel.
+    if not sys.platform.startswith("linux"):
+        return
+
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     candidate_libs = [
         os.path.join(repo_root, "vendor", "libgomp.so.1"),
