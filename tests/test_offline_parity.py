@@ -1,11 +1,22 @@
 import pytest
-import os
 from pathlib import Path
 from fastapi.testclient import TestClient
-from f1outcome.api.app import app
+from f1outcome.api import app as app_module
+from f1outcome import runtime
 from f1outcome.data.live_builder import LiveBuilder
 
-client = TestClient(app)
+client = TestClient(app_module.app)
+
+
+def test_lightgbm_runtime_ignores_linux_library_on_windows(monkeypatch):
+    monkeypatch.setattr(runtime.sys, "platform", "win32")
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("Linux libgomp must not be loaded on Windows")
+
+    monkeypatch.setattr(runtime.ctypes, "CDLL", fail_if_called)
+    runtime.prepare_lightgbm_runtime()
+
 
 def test_meta_endpoint():
     """Verify the API logic is functioning and environmental paths bind correctly."""
@@ -74,31 +85,35 @@ def test_live_endpoint_falls_back_to_prequalifying_forecast(monkeypatch):
     reason="Frozen models or dataset parquet not found locally. Skipping next race check in CI.",
 )
 def test_predict_next_targets_upcoming_round(monkeypatch):
+    dataset = app_module.get_dataset()
+    season_df = dataset[dataset["season"] == 2026]
+    expected_round = int(season_df["round"].max()) + 1
+
     def no_qualifying(self, season, rnd):
         raise ValueError("No qualifying data found")
 
-    def belgian_metadata(self, season, rnd):
-        assert (season, rnd) == (2026, 10)
+    def test_metadata(self, season, rnd):
+        assert (season, rnd) == (2026, expected_round)
         return {
-            "raceName": "Belgian Grand Prix",
-            "circuitId": "spa",
-            "circuitName": "Circuit de Spa-Francorchamps",
-            "date": "2026-07-19",
+            "raceName": "Test Grand Prix",
+            "circuitId": "test_circuit",
+            "circuitName": "Test Circuit",
+            "date": "2026-12-31",
             "source": "jolpica",
         }
 
     monkeypatch.setattr(LiveBuilder, "fetch_live_qualifying", no_qualifying)
-    monkeypatch.setattr(LiveBuilder, "fetch_race_metadata", belgian_metadata)
+    monkeypatch.setattr(LiveBuilder, "fetch_race_metadata", test_metadata)
 
     response = client.get("/predict/next?season=2026")
     assert response.status_code == 200
     data = response.json()
 
-    assert data["raceId"] == "2026_10"
-    assert data["raceName"] == "Belgian Grand Prix"
+    assert data["raceId"] == f"2026_{expected_round}"
+    assert data["raceName"] == "Test Grand Prix"
     assert data["prediction_type"] == "pre_qualifying_forecast"
     assert data["sources"]["ergast"] is True
-    assert data["form_cutoff_raceId"] == "2026_9"
+    assert data["form_cutoff_raceId"] == f"2026_{expected_round - 1}"
 
 
 @pytest.mark.skipif(

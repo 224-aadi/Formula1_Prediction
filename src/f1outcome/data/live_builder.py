@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import tempfile
 from pathlib import Path
 from f1outcome.data.jolpica import JolpicaClient
 from f1outcome.data.fastf1_features import fastf1_driver_features, FastF1FeatureConfig, get_weather_flag
@@ -32,11 +33,13 @@ FALLBACK_RACE_METADATA = {
     (2026, 22): {"raceName": "Abu Dhabi Grand Prix", "circuitId": "yas_marina", "circuitName": "Yas Marina Circuit", "date": "2026-12-06"},
 }
 
+DEFAULT_CACHE_DIR = Path(tempfile.gettempdir()) / "f1outcome_cache"
+
 class LiveBuilder:
     """Builds a feature matrix for an emerging/upcoming race weekend."""
     def __init__(self, historical_parquet: str | Path):
         self.hist_df = pd.read_parquet(historical_parquet)
-        cache_root = Path(os.environ.get("F1_CACHE_DIR", "/tmp/f1outcome_cache"))
+        cache_root = Path(os.environ.get("F1_CACHE_DIR", str(DEFAULT_CACHE_DIR)))
         self.client = JolpicaClient(
             base_url=SETTINGS.jolpica_base,
             cache_dir=cache_root / "jolpica",
@@ -198,7 +201,13 @@ class LiveBuilder:
         df["track_sc_prob"] = df["circuitId"].apply(self._safety_car_probability)
         # Live weather from FastF1 (falls back to 0 for future/unavailable races)
         try:
-            wet_flag = get_weather_flag(season, rnd, FastF1FeatureConfig(cache_dir=Path(os.environ.get("F1_CACHE_DIR", "/tmp/f1outcome_cache")) / "fastf1"))
+            wet_flag = get_weather_flag(
+                season,
+                rnd,
+                FastF1FeatureConfig(
+                    cache_dir=Path(os.environ.get("F1_CACHE_DIR", str(DEFAULT_CACHE_DIR))) / "fastf1"
+                ),
+            )
         except Exception:
             wet_flag = 0
         df["is_wet_race"] = wet_flag
@@ -351,7 +360,9 @@ class LiveBuilder:
         df = self._add_teammate_delta(df)
         
         # 4. Fetch Live FastF1
-        cfg = FastF1FeatureConfig(cache_dir=Path(os.environ.get("F1_CACHE_DIR", "/tmp/f1outcome_cache")) / "fastf1")
+        cfg = FastF1FeatureConfig(
+            cache_dir=Path(os.environ.get("F1_CACHE_DIR", str(DEFAULT_CACHE_DIR))) / "fastf1"
+        )
         try:
             f1 = fastf1_driver_features(season, rnd, cfg)
             if not f1.empty:

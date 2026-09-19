@@ -1,7 +1,8 @@
 import os
 import sys
+import tempfile
 
-os.environ.setdefault("MPLCONFIGDIR", "/tmp")
+os.environ.setdefault("MPLCONFIGDIR", tempfile.gettempdir())
 
 # Add the src directory to the python path so `f1outcome` can be imported by Vercel
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
