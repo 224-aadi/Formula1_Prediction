@@ -12,6 +12,10 @@
   ],
   "routes": [
     {
+      "src": "/schedule",
+      "dest": "/api/index.py"
+    },
+    {
       "src": "/predict/(.*)",
       "dest": "/api/index.py"
     },

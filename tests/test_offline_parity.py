@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime, timezone
 from pathlib import Path
 from fastapi.testclient import TestClient
 from f1outcome.api import app as app_module
@@ -85,20 +86,27 @@ def test_live_endpoint_falls_back_to_prequalifying_forecast(monkeypatch):
     reason="Frozen models or dataset parquet not found locally. Skipping next race check in CI.",
 )
 def test_predict_next_targets_upcoming_round(monkeypatch):
-    dataset = app_module.get_dataset()
-    season_df = dataset[dataset["season"] == 2026]
-    expected_round = int(season_df["round"].max()) + 1
+    # Freeze the incident: dataset ends at Madrid; Baku is past; Sepang is next.
+    dataset = app_module.get_dataset().copy()
+    dataset = dataset[(dataset["season"] < 2026) | ((dataset["season"] == 2026) & (dataset["round"] <= 14))]
+    monkeypatch.setattr(LiveBuilder, "__init__", lambda self, path: setattr(self, "hist_df", dataset))
+    monkeypatch.setattr(app_module, "utc_now", lambda: datetime(2026, 10, 3, tzinfo=timezone.utc))
+    calendar = [
+        {"season": 2026, "round": 15, "raceId": "2026_15", "raceName": "Azerbaijan Grand Prix",
+         "date": "2026-09-26", "startTime": "2026-09-26T11:00:00+00:00", "circuitName": "Baku City Circuit"},
+        {"season": 2026, "round": 16, "raceId": "2026_16", "raceName": "Bahrain Grand Prix in Malaysia",
+         "date": "2026-10-04", "startTime": "2026-10-04T07:00:00+00:00", "circuitName": "Sepang International Circuit"},
+    ]
+    monkeypatch.setattr(app_module, "get_schedule", lambda season: calendar)
 
     def no_qualifying(self, season, rnd):
         raise ValueError("No qualifying data found")
 
     def test_metadata(self, season, rnd):
-        assert (season, rnd) == (2026, expected_round)
+        assert (season, rnd) == (2026, 16)
         return {
-            "raceName": "Test Grand Prix",
-            "circuitId": "test_circuit",
-            "circuitName": "Test Circuit",
-            "date": "2026-12-31",
+            **calendar[1],
+            "circuitId": "sepang",
             "source": "jolpica",
         }
 
@@ -109,11 +117,13 @@ def test_predict_next_targets_upcoming_round(monkeypatch):
     assert response.status_code == 200
     data = response.json()
 
-    assert data["raceId"] == f"2026_{expected_round}"
-    assert data["raceName"] == "Test Grand Prix"
+    assert data["raceId"] == "2026_16"
+    assert data["raceName"] == "Bahrain Grand Prix in Malaysia"
+    assert data["circuitName"] == "Sepang International Circuit"
     assert data["prediction_type"] == "pre_qualifying_forecast"
     assert data["sources"]["ergast"] is True
-    assert data["form_cutoff_raceId"] == f"2026_{expected_round - 1}"
+    assert data["form_cutoff_raceId"] == "2026_14"
+    assert any("Data refresh is pending" in warning for warning in data["warnings"])
 
 
 @pytest.mark.skipif(

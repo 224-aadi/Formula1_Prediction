@@ -17,6 +17,8 @@ type ScoredDriver = {
 type PredictionResponse = {
   raceId: string;
   raceName?: string | null;
+  circuitName?: string | null;
+  date?: string | null;
   order: ScoredDriver[];
   alpha: number;
   p_dnf_cap: number;
@@ -37,6 +39,10 @@ type RaceInfo = {
   round: number;
   raceId: string;
   raceName: string | null;
+  circuitName?: string | null;
+  date?: string | null;
+  startTime?: string;
+  hasData?: boolean;
 };
 type UiRace = RaceInfo & {
   name: string;
@@ -67,73 +73,6 @@ function errorMessage(error: unknown, fallback: string): string {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
-/* ═══════════════ RACE CALENDAR ═══════════════ */
-const CALENDAR: Record<number, { round: number; name: string; flag: string; circuit: string; date: string }[]> = {
-  2026: [
-    { round: 1, name: "Australian Grand Prix", flag: "🇦🇺", circuit: "Albert Park, Melbourne", date: "Mar 8" },
-    { round: 2, name: "Chinese Grand Prix", flag: "🇨🇳", circuit: "Shanghai International", date: "Mar 15" },
-    { round: 3, name: "Japanese Grand Prix", flag: "🇯🇵", circuit: "Suzuka", date: "Mar 29" },
-    { round: 4, name: "Miami Grand Prix", flag: "🇺🇸", circuit: "Miami International", date: "May 3" },
-    { round: 5, name: "Canadian Grand Prix", flag: "🇨🇦", circuit: "Circuit Gilles Villeneuve", date: "May 24" },
-    { round: 6, name: "Monaco Grand Prix", flag: "🇲🇨", circuit: "Circuit de Monaco", date: "Jun 7" },
-    { round: 7, name: "Barcelona Grand Prix", flag: "🇪🇸", circuit: "Circuit de Barcelona-Catalunya", date: "Jun 14" },
-    { round: 8, name: "Austrian Grand Prix", flag: "🇦🇹", circuit: "Red Bull Ring", date: "Jun 28" },
-    { round: 9, name: "British Grand Prix", flag: "🇬🇧", circuit: "Silverstone", date: "Jul 5" },
-    { round: 10, name: "Belgian Grand Prix", flag: "🇧🇪", circuit: "Spa-Francorchamps", date: "Jul 19" },
-    { round: 11, name: "Hungarian Grand Prix", flag: "🇭🇺", circuit: "Hungaroring", date: "Jul 26" },
-    { round: 12, name: "Dutch Grand Prix", flag: "🇳🇱", circuit: "Zandvoort", date: "Aug 23" },
-    { round: 13, name: "Italian Grand Prix", flag: "🇮🇹", circuit: "Monza", date: "Sep 6" },
-    { round: 14, name: "Spanish Grand Prix", flag: "🇪🇸", circuit: "Madring, Madrid", date: "Sep 13" },
-    { round: 15, name: "Azerbaijan Grand Prix", flag: "🇦🇿", circuit: "Baku City", date: "Sep 26" },
-    { round: 16, name: "Singapore Grand Prix", flag: "🇸🇬", circuit: "Marina Bay", date: "Oct 11" },
-    { round: 17, name: "United States Grand Prix", flag: "🇺🇸", circuit: "COTA, Austin", date: "Oct 25" },
-    { round: 18, name: "Mexico City Grand Prix", flag: "🇲🇽", circuit: "Hermanos Rodriguez", date: "Nov 1" },
-    { round: 19, name: "São Paulo Grand Prix", flag: "🇧🇷", circuit: "Interlagos", date: "Nov 8" },
-    { round: 20, name: "Las Vegas Grand Prix", flag: "🇺🇸", circuit: "Las Vegas Strip", date: "Nov 21" },
-    { round: 21, name: "Qatar Grand Prix", flag: "🇶🇦", circuit: "Lusail International", date: "Nov 29" },
-    { round: 22, name: "Abu Dhabi Grand Prix", flag: "🇦🇪", circuit: "Yas Marina", date: "Dec 6" },
-  ],
-  2025: [
-    { round: 1, name: "Australian Grand Prix", flag: "🇦🇺", circuit: "Albert Park", date: "Mar 16" },
-    { round: 2, name: "Chinese Grand Prix", flag: "🇨🇳", circuit: "Shanghai", date: "Mar 23" },
-    { round: 3, name: "Japanese Grand Prix", flag: "🇯🇵", circuit: "Suzuka", date: "Apr 6" },
-    { round: 4, name: "Bahrain Grand Prix", flag: "🇧🇭", circuit: "Sakhir", date: "Apr 13" },
-    { round: 5, name: "Saudi Arabian Grand Prix", flag: "🇸🇦", circuit: "Jeddah", date: "Apr 20" },
-    { round: 6, name: "Miami Grand Prix", flag: "🇺🇸", circuit: "Miami", date: "May 4" },
-    { round: 7, name: "Emilia Romagna Grand Prix", flag: "🇮🇹", circuit: "Imola", date: "May 18" },
-    { round: 8, name: "Monaco Grand Prix", flag: "🇲🇨", circuit: "Monte Carlo", date: "May 25" },
-    { round: 9, name: "Spanish Grand Prix", flag: "🇪🇸", circuit: "Barcelona", date: "Jun 1" },
-    { round: 10, name: "Canadian Grand Prix", flag: "🇨🇦", circuit: "Montreal", date: "Jun 15" },
-    { round: 11, name: "Austrian Grand Prix", flag: "🇦🇹", circuit: "Spielberg", date: "Jun 29" },
-    { round: 12, name: "British Grand Prix", flag: "🇬🇧", circuit: "Silverstone", date: "Jul 6" },
-  ],
-  2024: [
-    { round: 1, name: "Bahrain Grand Prix", flag: "🇧🇭", circuit: "Sakhir", date: "Mar 2" },
-    { round: 2, name: "Saudi Arabian Grand Prix", flag: "🇸🇦", circuit: "Jeddah", date: "Mar 9" },
-    { round: 3, name: "Australian Grand Prix", flag: "🇦🇺", circuit: "Albert Park", date: "Mar 24" },
-    { round: 4, name: "Japanese Grand Prix", flag: "🇯🇵", circuit: "Suzuka", date: "Apr 7" },
-    { round: 5, name: "Chinese Grand Prix", flag: "🇨🇳", circuit: "Shanghai", date: "Apr 21" },
-    { round: 6, name: "Miami Grand Prix", flag: "🇺🇸", circuit: "Miami", date: "May 5" },
-    { round: 7, name: "Emilia Romagna Grand Prix", flag: "🇮🇹", circuit: "Imola", date: "May 19" },
-    { round: 8, name: "Monaco Grand Prix", flag: "🇲🇨", circuit: "Monte Carlo", date: "May 26" },
-    { round: 9, name: "Canadian Grand Prix", flag: "🇨🇦", circuit: "Montreal", date: "Jun 9" },
-    { round: 10, name: "Spanish Grand Prix", flag: "🇪🇸", circuit: "Barcelona", date: "Jun 23" },
-    { round: 11, name: "Austrian Grand Prix", flag: "🇦🇹", circuit: "Spielberg", date: "Jun 30" },
-    { round: 12, name: "British Grand Prix", flag: "🇬🇧", circuit: "Silverstone", date: "Jul 7" },
-    { round: 13, name: "Hungarian Grand Prix", flag: "🇭🇺", circuit: "Hungaroring", date: "Jul 21" },
-    { round: 14, name: "Belgian Grand Prix", flag: "🇧🇪", circuit: "Spa", date: "Jul 28" },
-    { round: 15, name: "Dutch Grand Prix", flag: "🇳🇱", circuit: "Zandvoort", date: "Aug 25" },
-    { round: 16, name: "Italian Grand Prix", flag: "🇮🇹", circuit: "Monza", date: "Sep 1" },
-    { round: 17, name: "Azerbaijan Grand Prix", flag: "🇦🇿", circuit: "Baku", date: "Sep 15" },
-    { round: 18, name: "Singapore Grand Prix", flag: "🇸🇬", circuit: "Marina Bay", date: "Sep 22" },
-    { round: 19, name: "United States Grand Prix", flag: "🇺🇸", circuit: "Austin", date: "Oct 20" },
-    { round: 20, name: "Mexico City Grand Prix", flag: "🇲🇽", circuit: "Mexico City", date: "Oct 27" },
-    { round: 21, name: "Brazilian Grand Prix", flag: "🇧🇷", circuit: "Interlagos", date: "Nov 3" },
-    { round: 22, name: "Las Vegas Grand Prix", flag: "🇺🇸", circuit: "Las Vegas", date: "Nov 23" },
-    { round: 23, name: "Qatar Grand Prix", flag: "🇶🇦", circuit: "Losail", date: "Dec 1" },
-    { round: 24, name: "Abu Dhabi Grand Prix", flag: "🇦🇪", circuit: "Yas Marina", date: "Dec 8" },
-  ],
-};
 
 /* ═══════════════ DRIVER DATA (Season-Aware) ═══════════════ */
 type DriverInfo = { team: string; color: string; accent: string; num: number };
@@ -224,7 +163,6 @@ const fmt = (id: string) => id.split("_").map((w) => w[0].toUpperCase() + w.slic
 
 const raceDetails = (race: RaceInfo): UiRace => {
   const name = race.raceName || race.raceId;
-  const fallback = CALENDAR[race.season]?.find((r) => r.name === name || r.round === race.round);
   const lower = name.toLowerCase();
   const flag =
     lower.includes("australian") ? "🇦🇺" :
@@ -248,14 +186,14 @@ const raceDetails = (race: RaceInfo): UiRace => {
     lower.includes("brazil") || lower.includes("são paulo") ? "🇧🇷" :
     lower.includes("qatar") ? "🇶🇦" :
     lower.includes("abu dhabi") ? "🇦🇪" :
-    fallback?.flag || "🏁";
+    "🏁";
 
   return {
     ...race,
     name,
     flag,
-    circuit: fallback?.circuit || "Grand Prix weekend",
-    date: fallback?.date || "Completed",
+    circuit: race.circuitName || "Grand Prix weekend",
+    date: race.date ? new Date(race.date + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "Date unavailable",
   };
 };
 
@@ -313,6 +251,7 @@ export default function Home() {
   const [round, setRound] = useState(1);
   const [availableSeasons, setAvailableSeasons] = useState<number[]>([2026, 2025, 2024]);
   const [races, setRaces] = useState<UiRace[]>([]);
+  const [calendarNotice, setCalendarNotice] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [tab, setTab] = useState<"grid" | "h2h" | "calendar" | "accuracy">("grid");
   const [cmp, setCmp] = useState<string[]>([]);
@@ -322,14 +261,15 @@ export default function Home() {
   const [btLoading, setBtLoading] = useState(false);
 
   const race = races.find((r) => r.round === round);
-  const latestRound = races.length ? Math.max(...races.map((r) => r.round)) : round;
   const predictedRound = data ? Number(data.raceId.split("_")[1] || round) : round;
-  const displayRace = data && predictedRound !== round
-    ? raceDetails({
+  const displayRace = data
+    ? races.find((r) => r.raceId === data.raceId) || raceDetails({
         season,
         round: predictedRound,
         raceId: data.raceId,
         raceName: data.raceName || data.raceId,
+        circuitName: data.circuitName,
+        date: data.date,
       })
     : race;
 
@@ -350,10 +290,11 @@ export default function Home() {
         if (!res.ok) throw new Error(`Failed to load seasons (${res.status})`);
         const all: RaceInfo[] = await res.json();
         if (cancelled) return;
-        const years = Array.from(new Set(all.map((r) => r.season))).sort((a, b) => b - a);
+        const currentYear = new Date().getUTCFullYear();
+        const years = Array.from(new Set([currentYear, ...all.map((r) => r.season)])).sort((a, b) => b - a);
         if (years.length) {
           setAvailableSeasons(years);
-          setSeason((current) => years.includes(current) ? current : years[0]);
+          setSeason(currentYear);
         }
       } catch (error: unknown) {
         if (!cancelled) setError(errorMessage(error, "Failed to load race data"));
@@ -368,14 +309,23 @@ export default function Home() {
     async function loadRaces() {
       setLoadingRaces(true);
       setError(null);
+      setCalendarNotice(null);
       try {
-        const res = await fetch(`${API_BASE}/races?season=${season}`);
+        const [res, scheduleRes] = await Promise.all([
+          fetch(`${API_BASE}/races?season=${season}`),
+          fetch(`${API_BASE}/schedule?season=${season}`, { cache: "no-store" }).catch(() => null),
+        ]);
         if (!res.ok) throw new Error(`Failed to load ${season} races (${res.status})`);
         const loaded: RaceInfo[] = await res.json();
+        const scheduled: RaceInfo[] = scheduleRes?.ok ? await scheduleRes.json() : [];
         if (cancelled) return;
-        const decorated = loaded.map(raceDetails);
+        if (!scheduleRes?.ok) setCalendarNotice("Live calendar unavailable. Showing saved races only; Next Race will retry the live calendar.");
+        const byId = new Map(loaded.map((r) => [r.raceId, { ...r, hasData: true }]));
+        for (const r of scheduled) byId.set(r.raceId, { ...r, hasData: byId.has(r.raceId) });
+        const decorated = [...byId.values()].sort((a, b) => a.round - b.round).map(raceDetails);
         setRaces(decorated);
-        setRound(decorated.length ? decorated[decorated.length - 1].round : 1);
+        const upcoming = decorated.find((r) => r.startTime && Date.parse(r.startTime) > Date.now());
+        setRound(upcoming?.round ?? loaded[loaded.length - 1]?.round ?? 1);
         setData(null);
         setExpanded(null);
         setCmp([]);
@@ -391,14 +341,15 @@ export default function Home() {
   }, [season]);
 
   const predict = useCallback(async (s: number, r: number, kind: "dataset" | "live" | "next" = "dataset") => {
-    setLoading(true); setError(null); setExpanded(null);
+    setLoading(true); setError(null); setData(null); setExpanded(null);
     try {
       const url = kind === "next"
         ? `${API_BASE}/predict/next?season=${s}`
         : `${API_BASE}/predict/${kind === "live" ? "live" : "from_parquet"}?season=${s}&round=${r}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) { const e = await res.json().catch(() => ({ detail: "API Error" })); throw new Error(e.detail || `HTTP ${res.status}`); }
       const payload: PredictionResponse = await res.json();
+      setRound(Number(payload.raceId.split("_")[1]));
       setData({
         ...payload,
         sources: payload.sources || { ergast: kind === "live", fastf1: false, dataset_form: true },
@@ -449,7 +400,7 @@ export default function Home() {
             {/* Season Tabs */}
             <div className="flex gap-1 bg-zinc-900/60 p-1 rounded-xl border border-white/5">
               {availableSeasons.map((y) => (
-                <button key={y} onClick={() => { setSeason(y); setRound(1); setData(null); }}
+                <button key={y} disabled={loading} onClick={() => { setSeason(y); setRound(1); setData(null); }}
                   className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${season === y ? "bg-red-600 text-white shadow-lg shadow-red-900/30" : "text-zinc-500 hover:text-white hover:bg-zinc-800"}`}>
                   {y}
                 </button>
@@ -494,19 +445,21 @@ export default function Home() {
             </div>
 
             {/* Predict Button */}
-            <button onClick={() => predict(season, round, "dataset")} disabled={loading || loadingRaces}
+            <button onClick={() => predict(season, round, race?.hasData ? "dataset" : "live")} disabled={loading || loadingRaces || !race}
               className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-black text-sm uppercase tracking-wider transition-all disabled:opacity-40 animate-pulse-glow flex-shrink-0 flex items-center gap-2">
               {loading ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Computing</> : <>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                 Predict
               </>}
             </button>
-            <button onClick={() => predict(season, latestRound + 1, "next")} disabled={loading || loadingRaces}
+            <button onClick={() => predict(season, round, "next")} disabled={loading || loadingRaces}
               className="px-5 py-2.5 rounded-xl border border-white/10 bg-zinc-900/70 hover:bg-zinc-800 active:scale-95 text-zinc-200 font-black text-sm uppercase tracking-wider transition-all disabled:opacity-40 flex-shrink-0">
               Next Race
             </button>
           </div>
         </section>
+
+        {calendarNotice && <p role="status" className="mb-4 text-sm text-amber-400">{calendarNotice}</p>}
 
         {/* ═══ RACE HERO BANNER ═══ */}
         {displayRace && data && !loading && (
@@ -924,7 +877,7 @@ export default function Home() {
             {/* ───── CALENDAR TAB ───── */}
             {tab === "calendar" && (
               <div className="space-y-4 animate-fade-in-up">
-                <p className="text-xs text-zinc-500">Completed {season} races from the production dataset. Use Next Race for the upcoming forecast; it upgrades automatically when qualifying is posted.</p>
+                <p className="text-xs text-zinc-500">Live {season} calendar with saved historical races. Next Race follows the scheduled start time and upgrades automatically when qualifying is posted.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {races.map((r) => {
                     return (
@@ -945,9 +898,9 @@ export default function Home() {
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950/50 text-emerald-400">
-                            COMPLETED DATA
+                            {r.hasData ? "COMPLETED DATA" : r.startTime && Date.parse(r.startTime) > Date.now() ? "UPCOMING" : "DATA PENDING"}
                           </div>
-                          <button onClick={() => { setRound(r.round); setTab("grid"); predict(season, r.round, "dataset"); }}
+                          <button onClick={() => { setRound(r.round); setTab("grid"); predict(season, r.round, r.hasData ? "dataset" : "live"); }}
                             className="flex items-center gap-1 px-3 py-1 rounded-lg bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white text-[10px] font-bold transition-all">
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                             Predict
