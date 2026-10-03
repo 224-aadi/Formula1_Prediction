@@ -7,6 +7,8 @@ on:
       - '.github/workflows/update_dataset.yml'
       - 'scripts/refresh_production.py'
       - 'src/f1outcome/data/**'
+      - 'uv.lock'
+      - 'pyproject.toml'
   schedule:
     # Off the busy top of the hour; Tuesday retries delayed Monday results.
     - cron: '17 12 * * 1,2'
@@ -38,21 +40,21 @@ jobs:
       with:
         python-version: "3.11"
         cache: 'pip'
-        cache-dependency-path: pyproject.toml
+        cache-dependency-path: uv.lock
 
     - name: Install Dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -e .
+        python -m pip install uv
+        uv sync --locked --python 3.11
 
     - name: Rebuild production dataset and retrain models
       run: |
         mkdir -p "$F1_CACHE_DIR" "$MPLCONFIGDIR"
-        python scripts/refresh_production.py --start-season 2019
+        uv run --frozen python scripts/refresh_production.py --start-season 2019
 
     - name: Run regression tests against refreshed artifacts
       run: |
-        python -m pytest -q tests/
+        uv run --frozen python -m pytest -q tests/ -W error::sklearn.exceptions.InconsistentVersionWarning
 
     - name: Commit and Push Changes
       run: |

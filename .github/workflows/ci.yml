@@ -17,16 +17,16 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: uv.lock
           
       - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e .
+          python -m pip install uv
+          uv sync --locked --python 3.11
           
       - name: Run Tests (Offline Parity & Meta Route)
         run: |
-          python -m pytest -q tests/
+          uv run --frozen python -m pytest -q tests/ -W error::sklearn.exceptions.InconsistentVersionWarning
 
   frontend-checks:
     runs-on: ubuntu-latest
