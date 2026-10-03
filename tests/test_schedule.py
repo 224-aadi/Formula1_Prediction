@@ -82,6 +82,11 @@ def test_schedule_endpoint_includes_updated_venue(monkeypatch, calendar):
     assert response.json()[1]["raceName"] == "Bahrain Grand Prix in Malaysia"
 
 
+def test_schedule_accepts_historical_seasons_shown_in_ui(monkeypatch):
+    monkeypatch.setattr(app_module, "get_schedule", lambda season: [])
+    assert TestClient(app_module.app).get("/schedule?season=2019").status_code == 200
+
+
 def test_expired_empty_qualifying_cache_is_refetched(tmp_path):
     client = JolpicaClient("https://example.test", tmp_path, cache_ttl_s=300)
     cached = tmp_path / "2026_16_qualifying.json"

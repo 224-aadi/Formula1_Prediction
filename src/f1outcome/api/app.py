@@ -398,7 +398,7 @@ def predict_next(
 
 
 @app.get("/schedule")
-def scheduled_races(season: int = Query(..., ge=2024)):
+def scheduled_races(season: int = Query(..., ge=1950)):
     try:
         return get_schedule(season)
     except Exception as exc:
