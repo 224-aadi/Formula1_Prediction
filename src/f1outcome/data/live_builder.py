@@ -4,34 +4,11 @@ import os
 import tempfile
 from pathlib import Path
 from f1outcome.data.jolpica import JolpicaClient
+from f1outcome.data.schedule import get_schedule
 from f1outcome.data.fastf1_features import fastf1_driver_features, FastF1FeatureConfig, get_weather_flag
 from f1outcome.data.build_dataset import _parse_time_to_ms, _to_int
 from f1outcome.config import SETTINGS
 
-FALLBACK_RACE_METADATA = {
-    (2026, 1): {"raceName": "Australian Grand Prix", "circuitId": "albert_park", "circuitName": "Albert Park Grand Prix Circuit", "date": "2026-03-08"},
-    (2026, 2): {"raceName": "Chinese Grand Prix", "circuitId": "shanghai", "circuitName": "Shanghai International Circuit", "date": "2026-03-15"},
-    (2026, 3): {"raceName": "Japanese Grand Prix", "circuitId": "suzuka", "circuitName": "Suzuka Circuit", "date": "2026-03-29"},
-    (2026, 4): {"raceName": "Miami Grand Prix", "circuitId": "miami", "circuitName": "Miami International Autodrome", "date": "2026-05-03"},
-    (2026, 5): {"raceName": "Canadian Grand Prix", "circuitId": "villeneuve", "circuitName": "Circuit Gilles Villeneuve", "date": "2026-05-24"},
-    (2026, 6): {"raceName": "Monaco Grand Prix", "circuitId": "monaco", "circuitName": "Circuit de Monaco", "date": "2026-06-07"},
-    (2026, 7): {"raceName": "Barcelona Grand Prix", "circuitId": "catalunya", "circuitName": "Circuit de Barcelona-Catalunya", "date": "2026-06-14"},
-    (2026, 8): {"raceName": "Austrian Grand Prix", "circuitId": "red_bull_ring", "circuitName": "Red Bull Ring", "date": "2026-06-28"},
-    (2026, 9): {"raceName": "British Grand Prix", "circuitId": "silverstone", "circuitName": "Silverstone Circuit", "date": "2026-07-05"},
-    (2026, 10): {"raceName": "Belgian Grand Prix", "circuitId": "spa", "circuitName": "Circuit de Spa-Francorchamps", "date": "2026-07-19"},
-    (2026, 11): {"raceName": "Hungarian Grand Prix", "circuitId": "hungaroring", "circuitName": "Hungaroring", "date": "2026-07-26"},
-    (2026, 12): {"raceName": "Dutch Grand Prix", "circuitId": "zandvoort", "circuitName": "Circuit Zandvoort", "date": "2026-08-23"},
-    (2026, 13): {"raceName": "Italian Grand Prix", "circuitId": "monza", "circuitName": "Autodromo Nazionale di Monza", "date": "2026-09-06"},
-    (2026, 14): {"raceName": "Spanish Grand Prix", "circuitId": "madrid", "circuitName": "Madring", "date": "2026-09-13"},
-    (2026, 15): {"raceName": "Azerbaijan Grand Prix", "circuitId": "baku", "circuitName": "Baku City Circuit", "date": "2026-09-26"},
-    (2026, 16): {"raceName": "Singapore Grand Prix", "circuitId": "marina_bay", "circuitName": "Marina Bay Street Circuit", "date": "2026-10-11"},
-    (2026, 17): {"raceName": "United States Grand Prix", "circuitId": "americas", "circuitName": "Circuit of the Americas", "date": "2026-10-25"},
-    (2026, 18): {"raceName": "Mexico City Grand Prix", "circuitId": "rodriguez", "circuitName": "Autodromo Hermanos Rodriguez", "date": "2026-11-01"},
-    (2026, 19): {"raceName": "Sao Paulo Grand Prix", "circuitId": "interlagos", "circuitName": "Autodromo Jose Carlos Pace", "date": "2026-11-08"},
-    (2026, 20): {"raceName": "Las Vegas Grand Prix", "circuitId": "las_vegas", "circuitName": "Las Vegas Strip Circuit", "date": "2026-11-21"},
-    (2026, 21): {"raceName": "Qatar Grand Prix", "circuitId": "losail", "circuitName": "Lusail International Circuit", "date": "2026-11-29"},
-    (2026, 22): {"raceName": "Abu Dhabi Grand Prix", "circuitId": "yas_marina", "circuitName": "Yas Marina Circuit", "date": "2026-12-06"},
-}
 
 DEFAULT_CACHE_DIR = Path(tempfile.gettempdir()) / "f1outcome_cache"
 
@@ -43,7 +20,9 @@ class LiveBuilder:
         self.client = JolpicaClient(
             base_url=SETTINGS.jolpica_base,
             cache_dir=cache_root / "jolpica",
-            min_interval_s=0.2
+            min_interval_s=0.2,
+            cache_ttl_s=300,
+            max_retries=1,
         )
 
     @staticmethod
@@ -94,33 +73,10 @@ class LiveBuilder:
 
     def fetch_race_metadata(self, season: int, rnd: int) -> dict:
         """Fetch scheduled race metadata. Works before results or qualifying exist."""
-        fallback = FALLBACK_RACE_METADATA.get((season, rnd))
-        try:
-            js = self.client.get_json(f"{season}/{rnd}.json")
-        except Exception as exc:
-            if fallback:
-                return {**fallback, "source": "fallback", "error": str(exc)}
-            raise
-
-        races = js["MRData"]["RaceTable"]["Races"]
-        if not races:
-            return {**fallback, "source": "fallback"} if fallback else {
-                "raceName": None,
-                "circuitId": None,
-                "circuitName": None,
-                "date": None,
-                "source": "empty",
-            }
-
-        race = races[0]
-        circuit = race.get("Circuit") or {}
-        return {
-            "raceName": race.get("raceName"),
-            "circuitId": circuit.get("circuitId"),
-            "circuitName": circuit.get("circuitName"),
-            "date": race.get("date"),
-            "source": "jolpica",
-        }
+        race = next((race for race in get_schedule(season) if race["round"] == rnd), None)
+        if race is None:
+            raise ValueError(f"No scheduled race found for {season} Round {rnd}.")
+        return {**race, "source": "jolpica"}
         
     def _get_last_known_form(self, target_season: int, target_round: int) -> tuple[pd.DataFrame, pd.DataFrame, str]:
         """Extracts the most recent rolling form values for every driver and team strictly BEFORE the target race."""
@@ -161,6 +117,8 @@ class LiveBuilder:
             raise ValueError(f"No qualifying data found for {season} Round {rnd}. Qualifying must be finished to predict the race!")
             
         q = races[0].get("QualifyingResults", [])
+        if not q:
+            raise ValueError(f"No qualifying results found for {season} Round {rnd}.")
         circuitId = races[0]["Circuit"]["circuitId"]
         
         rows = []
@@ -173,6 +131,7 @@ class LiveBuilder:
             rows.append({
                 "season": season,
                 "round": rnd,
+                "raceName": races[0].get("raceName"),
                 "driverId": r["Driver"]["driverId"],
                 "givenName": r["Driver"].get("givenName"),
                 "familyName": r["Driver"].get("familyName"),
@@ -336,7 +295,7 @@ class LiveBuilder:
             # Sanity checks (Test 4)
             if not df.empty:
                 max_grid = df["grid"].max()
-                if max_grid > 20 or max_grid < 1:
+                if max_grid > len(df) or max_grid < 1:
                     warnings_list.append(f"Grid position out of bounds: max {max_grid}")
                 
                 max_gap = df["qualiGapPct"].max()

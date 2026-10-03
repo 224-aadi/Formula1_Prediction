@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from f1outcome.models.ranker import load as load_ranker, FEATURES
 from f1outcome.models.dnf import load as load_dnf
 from f1outcome.data.live_builder import LiveBuilder
+from f1outcome.data.schedule import get_schedule, next_race, utc_now
 from f1outcome.api.frontend import PRODUCT_HTML
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -106,6 +107,8 @@ class PredictResponse(BaseModel):
 class PredictLiveResponse(BaseModel):
     raceId: str
     raceName: Optional[str] = None
+    circuitName: Optional[str] = None
+    date: Optional[str] = None
     order: List[ScoredDriver]
     alpha: float
     p_dnf_cap: float
@@ -372,19 +375,34 @@ def predict_next(
     season: int | None = Query(default=None, ge=2024),
     mode: str = Query(default=MODE, pattern="^(subtract|subtract_cap)$"),
 ):
-    df = get_dataset()
-    target_season = int(season) if season is not None else int(df["season"].max())
-    season_df = df[df["season"] == target_season]
-    if season_df.empty:
-        raise HTTPException(status_code=404, detail=f"No data for season {target_season}")
-
-    target_round = int(season_df["round"].max()) + 1
-    return predict_live(
+    now = utc_now()
+    target_season = int(season) if season is not None else now.year
+    schedule = scheduled_races(target_season)
+    target = next_race(schedule, now)
+    if target is None:
+        raise HTTPException(status_code=404, detail=f"No upcoming race scheduled in {target_season}.")
+    result = predict_live(
         season=target_season,
-        round=target_round,
+        round=target["round"],
         mode=mode,
         allow_prequalifying=True,
     )
+    result.update({key: target[key] for key in ("raceName", "circuitName", "date")})
+    prior = [race for race in schedule if race["startTime"] < target["startTime"]]
+    if prior and result["form_cutoff_raceId"] != prior[-1]["raceId"]:
+        result["warnings"].append(
+            f"Historical form is only current through {result['form_cutoff_raceId']}; "
+            f"the latest preceding scheduled race is {prior[-1]['raceId']}. Data refresh is pending."
+        )
+    return result
+
+
+@app.get("/schedule")
+def scheduled_races(season: int = Query(..., ge=1950)):
+    try:
+        return get_schedule(season)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Live race calendar is temporarily unavailable. Please retry.") from exc
 
 
 # ----------------------------

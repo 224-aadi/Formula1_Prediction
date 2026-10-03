@@ -5,12 +5,13 @@ import requests
 
 # Jolpica rate limits: 4 req/sec, 500 req/hour :contentReference[oaicite:3]{index=3}
 class JolpicaClient:
-    def __init__(self, base_url: str, cache_dir: Path, min_interval_s: float = 0.30, max_retries: int = 5):
+    def __init__(self, base_url: str, cache_dir: Path, min_interval_s: float = 0.30, max_retries: int = 5, cache_ttl_s: float | None = None):
         self.base_url = base_url.rstrip("/")
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.min_interval_s = min_interval_s
         self.max_retries = max_retries
+        self.cache_ttl_s = cache_ttl_s
         self._last_call = 0.0
         self.session = requests.Session()
 
@@ -27,7 +28,9 @@ class JolpicaClient:
         fname = f"{safe}__{pkey}.json" if pkey else f"{safe}.json"
         fpath = self.cache_dir / fname
 
-        if fpath.exists():
+        if fpath.exists() and (
+            self.cache_ttl_s is None or time.time() - fpath.stat().st_mtime < self.cache_ttl_s
+        ):
             return json.loads(fpath.read_text(encoding="utf-8"))
 
         self._sleep_if_needed()

@@ -1,9 +1,15 @@
 name: Refresh Production F1 Data
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/update_dataset.yml'
+      - 'scripts/refresh_production.py'
+      - 'src/f1outcome/data/**'
   schedule:
-    # Run every Monday after a race weekend.
-    - cron: '0 12 * * 1'
+    # Off the busy top of the hour; Tuesday retries delayed Monday results.
+    - cron: '17 12 * * 1,2'
   workflow_dispatch:
 
 concurrency:
@@ -13,6 +19,7 @@ concurrency:
 jobs:
   refresh-production-data:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     permissions:
       contents: write

@@ -58,6 +58,7 @@ def main() -> None:
         base_url=SETTINGS.jolpica_base,
         cache_dir=SETTINGS.raw_dir / "jolpica_cache",
         min_interval_s=1.10,
+        cache_ttl_s=3600,
     )
     builder = DatasetBuilder(client)
     df = builder.build(
@@ -71,6 +72,13 @@ def main() -> None:
 
     df = df.sort_values(["season", "round", "finishPosition"], na_position="last").reset_index(drop=True)
     dataset_path = SETTINGS.processed_dir / "final_hybrid_dataset.parquet"
+    if dataset_path.exists():
+        previous = pd.read_parquet(dataset_path, columns=["season", "round"])
+        previous = previous[previous["season"].isin(seasons)]
+        old_races = set(map(tuple, previous.drop_duplicates().to_numpy()))
+        new_races = set(map(tuple, df[["season", "round"]].drop_duplicates().to_numpy()))
+        if old_races - new_races:
+            raise SystemExit(f"Refresh lost completed races {old_races - new_races}; refusing to publish.")
     df.to_parquet(dataset_path, index=False)
 
     print(f"Training ranker on {len(df):,} rows...")
