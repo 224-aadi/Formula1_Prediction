@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-10-06T18:33:31.350072+00:00",
+  "generated_at": "2026-10-12T21:29:50.230672+00:00",
   "dataset": "data/processed/final_hybrid_dataset.parquet",
-  "rows": 3390,
+  "rows": 3412,
   "seasons": [
     2019,
     2020,
@@ -13,7 +13,7 @@
     2026
   ],
   "latest_season": 2026,
-  "latest_round": 16,
+  "latest_round": 17,
   "races_by_season": [
     {
       "season": 2019,
@@ -60,8 +60,8 @@
     {
       "season": 2026,
       "min": 1,
-      "max": 16,
-      "count": 16
+      "max": 17,
+      "count": 17
     }
   ],
   "features": [
